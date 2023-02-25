@@ -1,0 +1,15 @@
+#!/bin/sh
+
+echo "testing integration"
+
+/user-service &
+
+userservice_pid=$!
+
+# run system tests
+
+# scrape metrics
+
+echo "exiting test"
+
+kill $userservice_pid
