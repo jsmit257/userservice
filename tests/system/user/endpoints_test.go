@@ -26,7 +26,7 @@ func Test_UserGet(t *testing.T) {
 			},
 			sc: http.StatusOK,
 		},
-		"not_found": {
+		"get_fails": {
 			want: sharedv1.User{ID: "10000000-0000-0000-0000-000000000001"},
 			resp: "sql: no rows in result set",
 			sc:   http.StatusBadRequest,
