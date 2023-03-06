@@ -21,13 +21,10 @@ type User interface {
 }
 
 func (us *UserService) GetUser(w http.ResponseWriter, r *http.Request) {
-	userID := chi.URLParam(r, "user_id")
-	if userID == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	user, err := us.User.GetUser(r.Context(), userID)
+	user, err := us.User.GetUser(r.Context(), chi.URLParam(r, "user_id"))
 	if err != nil {
+		// TODO: differentiate between a missing userID (NotFound) and an http/service error
+		//       (InternalServerError/BadRequest) and log some info
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte(err.Error()))
 		return
@@ -91,7 +88,9 @@ func (us *UserService) PostUser(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusMovedPermanently)
+	w.Header().Add("Location", "/resetpassword") // FIXME: url isn't so simple
+	w.Header().Add("OTC", "one time code")       // FIXME: need to figure out codes
 	_, _ = w.Write([]byte(id))
 	m.WithLabelValues(strconv.Itoa(http.StatusOK), "none").Inc()
 }

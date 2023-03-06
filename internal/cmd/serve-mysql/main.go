@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/jsmit257/userservice/internal/data/mysql"
+	"github.com/jsmit257/userservice/internal/metrics"
 	"github.com/jsmit257/userservice/internal/router"
+	"github.com/prometheus/client_golang/prometheus"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -42,10 +44,17 @@ func main() {
 
 	l.Debug("configured userservice")
 
-	srv := router.NewInstance(&router.UserService{
-		User:    mysql,
-		Address: mysql,
-		Contact: mysql})
+	mtrcs := metrics.NewHandler(prometheus.NewRegistry())
+
+	srv := router.NewInstance(
+		&router.UserService{
+			User:    mysql,
+			Address: mysql,
+			Contact: mysql,
+		},
+		cfg.ServerHost,
+		cfg.ServerPort,
+		mtrcs)
 
 	wg := &sync.WaitGroup{}
 
@@ -55,7 +64,7 @@ func main() {
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 			l.WithError(err).Fatal("http server didn't start properly")
 		}
-		l.Debug("http server didn't start properly")
+		l.Debug("http server shutdown complete")
 	}(srv, wg)
 
 	trap()

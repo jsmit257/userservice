@@ -2,6 +2,8 @@
 
 echo "testing integration"
 
+sleep 2s # waiting for mysql to start; shouldn't be necessary
+
 go run ./internal/cmd/serve-mysql/... &
 
 userservice_pid=$!
@@ -21,8 +23,10 @@ for i in `seq 0 20`; do
 done
 
 # run system tests
+go test -v -cover -race /go/src/build/tests/system/user/...
 
 # scrape metrics
+curl -i "${US_SERVER_HOST}:${US_SERVER_PORT}/metrics" 2>/dev/null
 
 echo "exiting test: '$userservice_pid'"
 

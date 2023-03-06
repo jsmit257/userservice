@@ -1,6 +1,7 @@
 package router
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/jsmit257/userservice/internal/data"
@@ -19,7 +20,7 @@ type UserService struct {
 
 var mtrcs = metrics.ServiceMetrics.MustCurryWith(prometheus.Labels{})
 
-func NewInstance(us *UserService) *http.Server {
+func NewInstance(us *UserService, hostAddr string, hostPort uint16, mtrcs http.HandlerFunc) *http.Server {
 	r := chi.NewRouter()
 
 	// r.Use(middleware.Logger)
@@ -31,7 +32,12 @@ func NewInstance(us *UserService) *http.Server {
 
 	r.Get("/hc", hc)
 
-	return &http.Server{Addr: ":3000", Handler: r}
+	r.Get("/metrics", mtrcs)
+
+	return &http.Server{
+		Addr:    fmt.Sprintf("%s:%d", hostAddr, hostPort),
+		Handler: r,
+	}
 }
 
 // not much of a healthcheck, for now

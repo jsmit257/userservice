@@ -15,11 +15,16 @@ package-serve-mysql: compile-serve-mysql
 	docker-compose up --build --force-recreate package-serve-mysql
 
 .PHONY: test-serve-mysql
-test-serve-mysql: build
-	docker-compose down
+test-serve-mysql: docker-down build
 	docker-compose up --build --force-recreate test-serve-mysql
 
-system:
+.PHONY: system
+system: docker-down
+	docker-compose up --build --force-recreate schema
+	docker-compose up serve-mysql &
+	sleep 2s
+	-cd ./tests/system; go test -v ./user/...
+	docker-compose down
 
 vet:
 
@@ -27,3 +32,7 @@ fmt:
 	go fmt ./...
 
 docker:
+
+.PHONY: docker-down
+docker-down:
+	docker-compose down

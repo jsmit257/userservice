@@ -14,9 +14,9 @@ services:
       MYSQL_ROOT_PASSWORD: root
 
   schema:
+    depends_on: [ mysql ]
     # it's the same image as mysql, so get the mysql-client basically for free
     image: percona:ps-8.0.29-21
-    depends_on: [ mysql ]
     # apply a userservice schema to the percona container
     volumes: [ ./sql:/sql ]
     environment:
@@ -36,10 +36,35 @@ services:
     working_dir: /go/src/build
 
   package-serve-mysql:
+    image: userservice-deploy-serve-mysql
     # deploy the app to a slim container for deploy
     build: .
     volumes: [ .:/go/src/build ]
     working_dir: /go/src/build
+
+  serve-mysql:
+    depends_on:
+      - schema
+      - package-serve-mysql
+    image: userservice-deploy-serve-mysql
+    hostname: servicetester
+    ports: [ 3000:3000 ]
+    environment:
+      US_MYSQL_HOST: percona
+      US_MYSQL_PORT: 3306
+      US_MYSQL_ROOT_PASSWORD: root
+      US_MYSQL_USER: root
+    command: /user-service
+
+  foo:
+    depends_on: [ serve-mysql ]
+    image: golang:latest
+    volumes: [ ./tests:/go/src/build ]
+    environment:
+      US_SERVER_HOST: servicetester
+      US_SERVER_PORT: 3000
+    working_dir: /go/src/build/system
+    command: go test -v -cover ./user/...
 
   test-serve-mysql:
     depends_on: [ schema ]

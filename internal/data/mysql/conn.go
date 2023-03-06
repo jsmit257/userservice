@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
 
 	"github.com/jsmit257/userservice/internal/metrics"
 
@@ -43,8 +42,7 @@ func NewInstance(dbuser, dbpass, dbhost string, dbport uint16) (*Conn, error) {
 		"mysql_port":     dbport,
 	})
 	l.Debug("starting mysql conn")
-	url := fmt.Sprintf("%s:%s@tcp(%s:%d)/userservice", dbuser, dbpass, dbhost, dbport)
-	time.Sleep(2 * time.Second) // clumsy: the dependency on schema used to mean that mysql was up, not not sure
+	url := fmt.Sprintf("%s:%s@tcp(%s:%d)/userservice?parseTime=true", dbuser, dbpass, dbhost, dbport)
 	db, err := sql.Open("mysql", url)
 	if err != nil {
 		l.WithError(err).Error("failed to create mysql conn")

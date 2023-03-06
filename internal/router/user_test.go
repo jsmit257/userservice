@@ -200,7 +200,7 @@ func Test_userService_PostUser(t *testing.T) {
 				postUserResp: &sharedv1.User{ID: "1"},
 			},
 			r:        &sharedv1.User{ID: "1"},
-			sc:       http.StatusOK,
+			sc:       http.StatusMovedPermanently,
 			response: "1",
 		},
 		"unmarshal_fails": {
