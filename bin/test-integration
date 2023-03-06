@@ -2,14 +2,28 @@
 
 echo "testing integration"
 
-/user-service &
+go run ./internal/cmd/serve-mysql/... &
 
 userservice_pid=$!
+
+for i in `seq 0 20`; do
+  echo curl -i "${US_SERVER_HOST}:${US_SERVER_PORT}/hc"
+  if curl -i "${US_SERVER_HOST}:${US_SERVER_PORT}/hc" 2>/dev/null; then 
+    echo "successful healthcheck"
+    break
+  elif [ "$i" -eq 20 ]; then 
+    echo "failed after 21 retries, giving up"
+    exit 1
+  else
+    echo "healthcheck failed, retrying: $i"
+  fi 
+  sleep 1s
+done
 
 # run system tests
 
 # scrape metrics
 
-echo "exiting test"
+echo "exiting test: '$userservice_pid'"
 
-kill $userservice_pid
+kill -2 "$userservice_pid"

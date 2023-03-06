@@ -1,0 +1,26 @@
+#!/bin/sh
+
+cmdline=(
+  "`which mysql`"
+  -u"${US_MYSQL_USER}" 
+  -p"${US_MYSQL_ROOT_PASSWORD}" 
+  -P"${US_MYSQL_PORT}" 
+  -h"${US_MYSQL_HOST}"
+)
+echo "cmdline: ${cmdline[@]}" 
+
+for i in {0..20}; do
+  if "${cmdline[@]}" -e '\q'; then 
+    break
+  fi
+  echo "failed a connection, retrying $i"
+  sleep 1s
+done;
+
+"${cmdline[@]}" -e 'create database userservice; show databases;'
+
+for sqlfile in ../scripts/*; do 
+  echo "sqlfile: '$sqlfile'"
+  cat "$sqlfile" | "${cmdline[@]}" -Duserservice
+done
+

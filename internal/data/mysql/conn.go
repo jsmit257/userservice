@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/jsmit257/userservice/internal/metrics"
 
@@ -12,6 +13,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/prometheus/client_golang/prometheus"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type (
@@ -33,14 +36,24 @@ type (
 
 var mtrcs = metrics.DataMetrics.MustCurryWith(prometheus.Labels{"pkg": "mysql"})
 
-func NewInstance(dbhost, dbuser, dbpass string, dbport int) (*Conn, error) {
+func NewInstance(dbuser, dbpass, dbhost string, dbport uint16) (*Conn, error) {
+	l := log.WithFields(log.Fields{
+		"mysql_user":     dbuser,
+		"mysql_hostname": dbhost,
+		"mysql_port":     dbport,
+	})
+	l.Debug("starting mysql conn")
 	url := fmt.Sprintf("%s:%s@tcp(%s:%d)/userservice", dbuser, dbpass, dbhost, dbport)
+	time.Sleep(2 * time.Second) // clumsy: the dependency on schema used to mean that mysql was up, not not sure
 	db, err := sql.Open("mysql", url)
 	if err != nil {
-		panic(err)
+		l.WithError(err).Error("failed to create mysql conn")
+		return nil, err
 	} else if err = db.Ping(); err != nil {
-		panic(err)
+		l.WithError(err).Error("failed to ping mysql conn")
+		return nil, err
 	}
+	l.Info("successfully connected to mysql")
 	return &Conn{db, uuid.New}, nil
 }
 

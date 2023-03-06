@@ -6,9 +6,10 @@ import (
 
 type Config struct {
 	MySQLHost    string `envconfig:"MYSQL_HOST" required:"true"`
-	MySQLPort    int    `envconfig:"MYSQL_PORT" required:"true"`
-	MySQLRootPwd string `envconfig:"MYSQL_ROOT_PASSWORD" required:"true"`
+	MySQLPort    uint16 `envconfig:"MYSQL_PORT" required:"true"`
+	MySQLRootPwd string `envconfig:"MYSQL_ROOT_PASSWORD" required:"true" json:"-"`
 	MySQLUser    string `envconfig:"MYSQL_USER" required:"true"`
+	LogLevel     string `envconfig:"LOG_LEVEL" default:"INFO"`
 }
 
 func NewConfig() *Config {

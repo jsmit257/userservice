@@ -65,6 +65,7 @@ func (us *UserService) PatchUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (us *UserService) PostUser(w http.ResponseWriter, r *http.Request) {
+	// TODO: integrate logging/metrics and responsewrites into a helper function, probably in routes.go
 	m := mtrcs.MustCurryWith(prometheus.Labels{"function": "PostUser", "method": http.MethodPost})
 	var user sharedv1.User
 	body, err := io.ReadAll(r.Body)
