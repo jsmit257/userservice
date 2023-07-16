@@ -33,6 +33,8 @@ func main() {
 
 	l := log.WithField("cfg", cfg)
 
+	mtrcs := metrics.NewHandler(prometheus.NewRegistry())
+
 	mysql, err := mysql.NewInstance(
 		cfg.MySQLUser,
 		cfg.MySQLRootPwd,
@@ -43,8 +45,6 @@ func main() {
 	}
 
 	l.Debug("configured userservice")
-
-	mtrcs := metrics.NewHandler(prometheus.NewRegistry())
 
 	srv := router.NewInstance(
 		&router.UserService{

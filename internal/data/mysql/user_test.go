@@ -164,7 +164,7 @@ func TestAddUser(t *testing.T) {
 			},
 			user:   &sharedv1.User{Name: "username"},
 			result: "username",
-			err:    fmt.Errorf("user was not added: 'username'"),
+			err:    UserNotAddedError,
 		},
 	}
 	for name, tc := range tcs {

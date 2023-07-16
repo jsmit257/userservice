@@ -3,8 +3,10 @@ package mysql
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/go-sql-driver/mysql"
 	sharedv1 "github.com/jsmit257/userservice/shared/v1"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -14,9 +16,14 @@ const (
 	deleteUser      = "delete from user where id = ?"
 	insertUser      = "insert into users(id, name, password, salt, mtime, ctime) values(?, ?, ?, ?, ?, ?)"
 	selectBasicAuth = "select id, password, salt from users where name = ?"
-	selectUser      = "select id, name, mtime from users where id = ?"
+	selectUser      = "select name, mtime, dtime from users where id = ?"
 	updatePassword  = "update users set password = ?, salt = ?, mtime = ? where id = ?"
 	updateUser      = "update users set name = ?, mtime = ? where id = ?"
+)
+
+var (
+	UserExistsError   = fmt.Errorf("user already exists")
+	UserNotAddedError = fmt.Errorf("user was not added")
 )
 
 func (db *Conn) BasicAuth(ctx context.Context, login *sharedv1.BasicAuth) (*sharedv1.User, error) {
@@ -38,11 +45,11 @@ func (db *Conn) BasicAuth(ctx context.Context, login *sharedv1.BasicAuth) (*shar
 }
 
 func (db *Conn) GetUser(ctx context.Context, id string) (*sharedv1.User, error) {
-	result := &sharedv1.User{}
+	result := &sharedv1.User{ID: id}
 
 	return result, db.
 		QueryRowContext(ctx, selectUser, id).
-		Scan(&result.ID, &result.Name, &result.MTime)
+		Scan(&result.Name, &result.MTime, &result.DTime)
 }
 
 func (db *Conn) AddUser(ctx context.Context, u *sharedv1.User) (string, error) {
@@ -55,19 +62,20 @@ func (db *Conn) AddUser(ctx context.Context, u *sharedv1.User) (string, error) {
 		now,
 		now)
 	if err != nil {
-		// FIXME: choose what to do based on the tupe of error
-		duplicatePrimaryKeyErr, duplicateUsername := false, false
-		if duplicatePrimaryKeyErr {
-			return db.AddUser(ctx, u) // FIXME: handle infinite recursion (unlikely as it is)
-		} else if duplicateUsername {
-			return u.Name, fmt.Errorf("the user '%s' already exists", u.Name)
-		} else {
+		switch v := err.(type) {
+		case *mysql.MySQLError:
+			if strings.Contains(v.Error(), "users.id") {
+				return db.AddUser(ctx, u) // FIXME: handle infinite recursion (unlikely as it is)
+			} else if strings.Contains(v.Error(), "users.name") {
+				return u.Name, UserExistsError
+			}
+		default:
 			return u.Name, err
 		}
 	} else if rows, err := result.RowsAffected(); err != nil {
 		return u.Name, err
 	} else if rows != 1 {
-		return u.Name, fmt.Errorf("user was not added: '%s'", u.Name)
+		return u.Name, UserNotAddedError
 	}
 	return u.Name, nil
 }

@@ -19,12 +19,12 @@ test-serve-mysql: docker-down build
 	docker-compose up --build --force-recreate test-serve-mysql
 
 .PHONY: system
-system: docker-down
+system: docker-down package-serve-mysql
 	docker-compose up --build --force-recreate schema
 	docker-compose up serve-mysql &
 	sleep 2s
 	-cd ./tests/system; go test -v ./user/...
-	docker-compose down
+	-curl localhost:3000/metrics
 
 vet:
 

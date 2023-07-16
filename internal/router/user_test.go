@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/jsmit257/userservice/internal/data/mysql"
 	sharedv1 "github.com/jsmit257/userservice/shared/v1"
 
 	"github.com/go-chi/chi/v5"
@@ -67,10 +68,6 @@ func Test_userService_GetUser(t *testing.T) {
 			}(),
 			sc: http.StatusOK,
 		},
-		"no_user_id": {
-			userIDs: []string{""},
-			sc:      http.StatusBadRequest,
-		},
 		"get_user_fails": {
 			u: &mockUser{
 				getUserErr: fmt.Errorf("some error"),
@@ -80,9 +77,10 @@ func Test_userService_GetUser(t *testing.T) {
 			response: "some error",
 		},
 		"user_is_nil": {
-			u:       &mockUser{},
-			userIDs: []string{""},
-			sc:      http.StatusBadRequest,
+			u:        &mockUser{},
+			userIDs:  []string{""},
+			sc:       http.StatusOK,
+			response: "null",
 		},
 	}
 	for name, tc := range tcs {
@@ -128,10 +126,6 @@ func Test_userService_PatchUser(t *testing.T) {
 			userIDs: []string{"1"},
 			r:       &sharedv1.User{ID: "1"},
 			sc:      http.StatusNoContent,
-		},
-		"no_user_id": {
-			userIDs: []string{""},
-			sc:      http.StatusBadRequest,
 		},
 		"unmarshal_fails": {
 			u: &mockUser{
@@ -214,6 +208,22 @@ func Test_userService_PostUser(t *testing.T) {
 				postUserErr:  fmt.Errorf("some error"),
 			},
 			r:  &sharedv1.User{},
+			sc: http.StatusInternalServerError,
+		},
+		"user_exists": {
+			u: &mockUser{
+				postUserResp: &sharedv1.User{},
+				postUserErr:  mysql.UserExistsError,
+			},
+			r:  &sharedv1.User{ID: "1"},
+			sc: http.StatusBadRequest,
+		},
+		"user_not_added": {
+			u: &mockUser{
+				postUserResp: &sharedv1.User{},
+				postUserErr:  mysql.UserNotAddedError,
+			},
+			r:  &sharedv1.User{ID: "1"},
 			sc: http.StatusInternalServerError,
 		},
 		"user_not_found": {

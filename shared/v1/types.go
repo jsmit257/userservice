@@ -12,10 +12,11 @@ type (
 	}
 
 	User struct {
-		ID    string    `json:"user_id" mysql:"id"`
-		Name  string    `json:"username" mysql:"name"`
-		MTime time.Time `json:"mtime"`
-		CTime time.Time `json:"ctime"`
+		ID    string     `json:"user_id" mysql:"id"`
+		Name  string     `json:"username" mysql:"name"`
+		MTime time.Time  `json:"mtime"`
+		CTime time.Time  `json:"ctime"`
+		DTime *time.Time `json:"dtime,omitempty"`
 	}
 
 	Address struct {

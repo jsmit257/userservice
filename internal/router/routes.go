@@ -26,7 +26,7 @@ func NewInstance(us *UserService, hostAddr string, hostPort uint16, mtrcs http.H
 	// r.Use(middleware.Logger)
 
 	r.Get("/user/{user_id}", us.GetUser)
-	r.Patch("/user", us.PatchUser)
+	r.Patch("/user/{user_id}", us.PatchUser)
 	r.Post("/user", us.PostUser)
 	// r.Post("/user/{user_id}/contact", us.PostUser)
 

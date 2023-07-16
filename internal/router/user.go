@@ -2,6 +2,8 @@ package router
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -9,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/jsmit257/userservice/internal/data/mysql"
 	sharedv1 "github.com/jsmit257/userservice/shared/v1"
 )
 
@@ -37,10 +40,6 @@ func (us *UserService) GetUser(w http.ResponseWriter, r *http.Request) {
 func (us *UserService) PatchUser(w http.ResponseWriter, r *http.Request) {
 	var user sharedv1.User
 	userID := chi.URLParam(r, "user_id")
-	if userID == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -50,12 +49,15 @@ func (us *UserService) PatchUser(w http.ResponseWriter, r *http.Request) {
 	err = json.Unmarshal(body, &user)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(fmt.Sprintf("couldn't unmarshal: '%s'", body)))
 		return
 	} else if userID != user.ID {
 		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(fmt.Sprintf("user '%s' can't change attributes for user '%s'", userID, user.ID)))
 		return
 	} else if err = us.User.UpdateUser(r.Context(), &user); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -66,6 +68,7 @@ func (us *UserService) PostUser(w http.ResponseWriter, r *http.Request) {
 	m := mtrcs.MustCurryWith(prometheus.Labels{"function": "PostUser", "method": http.MethodPost})
 	var user sharedv1.User
 	body, err := io.ReadAll(r.Body)
+	defer r.Body.Close()
 	if err != nil {
 		m.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), err.Error()).Inc()
 		w.WriteHeader(http.StatusInternalServerError)
@@ -79,18 +82,28 @@ func (us *UserService) PostUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id, err := us.User.AddUser(r.Context(), &user)
-	if err != nil {
-		m.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), err.Error()).Inc()
+	switch {
+	case errors.Is(err, mysql.UserExistsError):
+		m.WithLabelValues(strconv.Itoa(http.StatusBadRequest), fmt.Sprintf("%q", err)).Inc()
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	case errors.Is(err, mysql.UserNotAddedError):
+		m.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), fmt.Sprintf("%q", err)).Inc()
 		w.WriteHeader(http.StatusInternalServerError)
 		return
-	} else if id == "" {
+	case err != nil:
+		m.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), fmt.Sprintf("%q", err)).Inc()
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if id == "" {
 		m.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), "userid_nil").Inc()
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusMovedPermanently)
-	w.Header().Add("Location", "/resetpassword") // FIXME: url isn't so simple
-	w.Header().Add("OTC", "one time code")       // FIXME: need to figure out codes
+	m.WithLabelValues(strconv.Itoa(http.StatusMovedPermanently), "none").Inc()
+	w.Header().Add("location", "/resetpassword") // FIXME: url isn't so simple
+	w.Header().Add("otc", "one time code")       // FIXME: need to figure out codes
 	_, _ = w.Write([]byte(id))
-	m.WithLabelValues(strconv.Itoa(http.StatusOK), "none").Inc()
 }
