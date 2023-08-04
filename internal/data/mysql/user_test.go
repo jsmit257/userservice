@@ -29,12 +29,14 @@ func TestBasicAuth(t *testing.T) {
 				db, mock, _ := sqlmock.New()
 				mock.ExpectQuery(selectBasicAuth).
 					WillReturnRows(sqlmock.
-						NewRows([]string{"id", "password", "salt"}).
-						AddRow("1", hash("pass", "salt"), "salt"))
+						NewRows([]string{"id", "password", "salt", "login_success", "login_failure", "failure_count"}).
+						AddRow("1", hash("pass", "salt"), "salt", nil, nil, 0))
+				mock.ExpectExec("update user .*").
+					WillReturnResult(sqlmock.NewResult(0, 1))
 				mock.ExpectQuery(selectUser).
 					WillReturnRows(sqlmock.
-						NewRows([]string{"id", "name", "mtime"}).
-						AddRow("1", "foo", userMTime))
+						NewRows([]string{"name", "mtime", "dtime", "login_success"}).
+						AddRow("foo", userMTime, nil, userMTime))
 				return db
 			},
 			login: &sharedv1.BasicAuth{
@@ -57,6 +59,21 @@ func TestBasicAuth(t *testing.T) {
 				Name: "foobar",
 				Pass: "pass",
 			},
+			err: fmt.Errorf("some error"),
+		},
+		"selectRow_not_found": {
+			mockDB: func() *sql.DB {
+				db, mock, _ := sqlmock.New()
+				mock.ExpectQuery(selectBasicAuth).
+					WillReturnRows(sqlmock.
+						NewRows([]string{"id", "password", "salt", "login_success", "login_failure", "failure_count"}).
+						AddRow("", hash("pass", "salt"), "salt", nil, nil, 0))
+				return db
+			},
+			login: &sharedv1.BasicAuth{
+				Name: "foobar",
+				Pass: "pass",
+			},
 			err: fmt.Errorf("bad username or password"),
 		},
 		"authn_fails": {
@@ -64,8 +81,10 @@ func TestBasicAuth(t *testing.T) {
 				db, mock, _ := sqlmock.New()
 				mock.ExpectQuery(selectBasicAuth).
 					WillReturnRows(sqlmock.
-						NewRows([]string{"id", "password", "salt"}).
-						AddRow("1", "bogus hash", "salt"))
+						NewRows([]string{"id", "password", "salt", "login_success", "login_failure", "failure_count"}).
+						AddRow("1", "bogus hash", "salt", nil, nil, 0))
+				mock.ExpectExec("update user .*").
+					WillReturnResult(sqlmock.NewResult(0, 1))
 				return db
 			},
 			login: &sharedv1.BasicAuth{

@@ -12,11 +12,13 @@ type (
 	}
 
 	User struct {
-		ID    string     `json:"user_id" mysql:"id"`
-		Name  string     `json:"username" mysql:"name"`
-		MTime time.Time  `json:"mtime"`
-		CTime time.Time  `json:"ctime"`
-		DTime *time.Time `json:"dtime,omitempty"`
+		ID           string     `json:"user_id" mysql:"id"`
+		Name         string     `json:"username" mysql:"name"`
+		MTime        time.Time  `json:"mtime" mysql:"mtime"`
+		CTime        time.Time  `json:"ctime" mysql:"ctime"`
+		DTime        *time.Time `json:"dtime,omitempty" mysql:"dtime"`
+		LoginSuccess *time.Time `json:"login_success,omitempty" mysql:"mtime"`
+		FailureCount uint8      `json:"failure_count,omitempty" mysql:"failure_count"`
 	}
 
 	Address struct {

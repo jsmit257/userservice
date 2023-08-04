@@ -49,67 +49,6 @@ func (mu *mockUser) DeleteUser(ctx context.Context, id string) error { // unused
 	return nil
 }
 
-func Test_userService_GetUser(t *testing.T) {
-	t.Parallel()
-	tcs := map[string]struct {
-		u        *mockUser
-		userIDs  []string
-		response string
-		sc       int
-	}{
-		"happy_path": {
-			u: &mockUser{
-				getUserResp: &sharedv1.User{ID: "1"},
-			},
-			userIDs: []string{"1"},
-			response: func() string {
-				result, _ := json.Marshal(&sharedv1.User{ID: "1"})
-				return string(result)
-			}(),
-			sc: http.StatusOK,
-		},
-		"get_user_fails": {
-			u: &mockUser{
-				getUserErr: fmt.Errorf("some error"),
-			},
-			userIDs:  []string{"1"},
-			sc:       http.StatusBadRequest,
-			response: "some error",
-		},
-		"user_is_nil": {
-			u:        &mockUser{},
-			userIDs:  []string{""},
-			sc:       http.StatusOK,
-			response: "null",
-		},
-	}
-	for name, tc := range tcs {
-		name, tc := name, tc
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			us := &UserService{User: tc.u}
-			w := httptest.NewRecorder()
-			rctx := chi.NewRouteContext()
-			rctx.URLParams = chi.RouteParams{Keys: []string{"user_id"}, Values: tc.userIDs}
-			r, _ := http.NewRequestWithContext(
-				context.WithValue(
-					context.Background(),
-					chi.RouteCtxKey,
-					rctx),
-				http.MethodGet,
-				"tc.url",
-				nil,
-			)
-			// t.Errorf("%#v\n", tc.u)
-			us.GetUser(w, r)
-			resp, _ := io.ReadAll(w.Body)
-			require.Equal(t, tc.sc, w.Code)
-			require.Equal(t, tc.response, string(resp))
-
-		})
-	}
-}
-
 func Test_userService_PatchUser(t *testing.T) {
 	t.Parallel()
 	tcs := map[string]struct {
@@ -177,6 +116,69 @@ func Test_userService_PatchUser(t *testing.T) {
 			)
 			us.PatchUser(w, r)
 			require.Equal(t, tc.sc, w.Code)
+		})
+	}
+}
+
+func Test_userService_GetUser(t *testing.T) {
+	t.Parallel()
+	tcs := map[string]struct {
+		u        *mockUser
+		userIDs  []string
+		response string
+		sc       int
+	}{
+		"happy_path": {
+			u: &mockUser{
+				getUserResp: &sharedv1.User{ID: "1"},
+			},
+			userIDs: []string{"1"},
+			response: func() string {
+				result, _ := json.Marshal(&sharedv1.User{
+					ID: "1",
+				})
+				return string(result)
+			}(),
+			sc: http.StatusOK,
+		},
+		"get_user_fails": {
+			u: &mockUser{
+				getUserErr: fmt.Errorf("some error"),
+			},
+			userIDs:  []string{"1"},
+			sc:       http.StatusBadRequest,
+			response: "some error",
+		},
+		"user_is_nil": {
+			u:        &mockUser{},
+			userIDs:  []string{""},
+			sc:       http.StatusOK,
+			response: "null",
+		},
+	}
+	for name, tc := range tcs {
+		name, tc := name, tc
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			us := &UserService{User: tc.u}
+			w := httptest.NewRecorder()
+			rctx := chi.NewRouteContext()
+			rctx.URLParams = chi.RouteParams{Keys: []string{"user_id"}, Values: tc.userIDs}
+			r, _ := http.NewRequestWithContext(
+				context.WithValue(
+					context.Background(),
+					chi.RouteCtxKey,
+					rctx),
+				http.MethodGet,
+				"tc.url",
+				nil,
+			)
+			// t.Errorf("%#v\n", tc.u)
+			us.GetUser(w, r)
+			resp, _ := io.ReadAll(w.Body)
+			require.Equal(t, tc.sc, w.Code)
+			require.Equal(t, tc.response, string(resp))
+
 		})
 	}
 }
