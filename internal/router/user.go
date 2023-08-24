@@ -24,7 +24,8 @@ type User interface {
 }
 
 func (us *UserService) GetUser(w http.ResponseWriter, r *http.Request) {
-	user, err := us.User.GetUser(r.Context(), chi.URLParam(r, "user_id"))
+	cid := cid()
+	user, err := us.User.GetUser(r.Context(), chi.URLParam(r, "user_id"), cid)
 	if err != nil {
 		// TODO: differentiate between a missing userID (NotFound) and an http/service error
 		//       (InternalServerError/BadRequest) and log some info
@@ -38,6 +39,7 @@ func (us *UserService) GetUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (us *UserService) PatchUser(w http.ResponseWriter, r *http.Request) {
+	cid := cid()
 	var user sharedv1.User
 	userID := chi.URLParam(r, "user_id")
 	body, err := io.ReadAll(r.Body)
@@ -55,7 +57,7 @@ func (us *UserService) PatchUser(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte(fmt.Sprintf("user '%s' can't change attributes for user '%s'", userID, user.ID)))
 		return
-	} else if err = us.User.UpdateUser(r.Context(), &user); err != nil {
+	} else if err = us.User.UpdateUser(r.Context(), &user, cid); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte(err.Error()))
 		return
@@ -64,6 +66,7 @@ func (us *UserService) PatchUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (us *UserService) PostUser(w http.ResponseWriter, r *http.Request) {
+	cid := cid()
 	// TODO: integrate logging/metrics and responsewrites into a helper function, probably in routes.go
 	m := mtrcs.MustCurryWith(prometheus.Labels{"function": "PostUser", "method": http.MethodPost})
 	var user sharedv1.User
@@ -81,7 +84,7 @@ func (us *UserService) PostUser(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	id, err := us.User.AddUser(r.Context(), &user)
+	id, err := us.User.AddUser(r.Context(), &user, cid)
 	switch {
 	case errors.Is(err, mysql.UserExistsError):
 		m.WithLabelValues(strconv.Itoa(http.StatusBadRequest), fmt.Sprintf("%q", err)).Inc()

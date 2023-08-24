@@ -30,7 +30,7 @@ var (
 	UserNotAddedError = fmt.Errorf("user was not added")
 )
 
-func (db *Conn) BasicAuth(ctx context.Context, login *sharedv1.BasicAuth) (*sharedv1.User, error) {
+func (db *Conn) BasicAuth(ctx context.Context, login *sharedv1.BasicAuth, cid string) (*sharedv1.User, error) {
 	m := mtrcs.MustCurryWith(prometheus.Labels{"method": "BasicAuth"})
 
 	var id, pass, salt string
@@ -65,7 +65,7 @@ func (db *Conn) BasicAuth(ctx context.Context, login *sharedv1.BasicAuth) (*shar
 		return nil, err
 	}
 
-	user, err := db.GetUser(ctx, id)
+	user, err := db.GetUser(ctx, id, cid)
 	if err == nil {
 		// for all intents and purposes, BasicAuth is successful (i.e "err":"none" in the metric) here,
 		// GetUser may still fail with a separate metric; the context is the key to correlating the
@@ -79,7 +79,7 @@ func (db *Conn) BasicAuth(ctx context.Context, login *sharedv1.BasicAuth) (*shar
 	return user, err
 }
 
-func (db *Conn) GetUser(ctx context.Context, id string) (*sharedv1.User, error) {
+func (db *Conn) GetUser(ctx context.Context, id string, cid string) (*sharedv1.User, error) {
 	result := &sharedv1.User{ID: id}
 
 	return result, db.
@@ -87,7 +87,7 @@ func (db *Conn) GetUser(ctx context.Context, id string) (*sharedv1.User, error) 
 		Scan(&result.Name, &result.MTime, &result.DTime, &result.LoginSuccess)
 }
 
-func (db *Conn) AddUser(ctx context.Context, u *sharedv1.User) (string, error) {
+func (db *Conn) AddUser(ctx context.Context, u *sharedv1.User, cid string) (string, error) {
 	salt, now := generateSalt(), time.Now().UTC()
 	result, err := db.ExecContext(ctx, insertUser,
 		db.generateUUID(),
@@ -101,7 +101,7 @@ func (db *Conn) AddUser(ctx context.Context, u *sharedv1.User) (string, error) {
 		case *mysql.MySQLError:
 			// FIXME: is there no better way to determine key violation vs. some other error?
 			if strings.Contains(v.Error(), "users.id") {
-				return db.AddUser(ctx, u) // FIXME: handle infinite recursion (unlikely as it is)
+				return db.AddUser(ctx, u, cid) // FIXME: handle infinite recursion (unlikely as it is)
 			} else if strings.Contains(v.Error(), "users.name") {
 				return u.Name, UserExistsError
 			}
@@ -116,8 +116,8 @@ func (db *Conn) AddUser(ctx context.Context, u *sharedv1.User) (string, error) {
 	return u.Name, nil
 }
 
-func (db *Conn) UpdateUser(ctx context.Context, u *sharedv1.User) error {
-	curr, err := db.GetUser(ctx, u.ID)
+func (db *Conn) UpdateUser(ctx context.Context, u *sharedv1.User, cid string) error {
+	curr, err := db.GetUser(ctx, u.ID, cid)
 	if err != nil {
 		return fmt.Errorf("failed to fetch user: '%s' %w", u.ID, err)
 	}
@@ -134,10 +134,11 @@ func (db *Conn) UpdateUser(ctx context.Context, u *sharedv1.User) error {
 	} else if rows != 1 {
 		return fmt.Errorf("user was not updated: '%s'", u.ID)
 	}
+
 	return nil
 }
 
-func (db *Conn) DeleteUser(ctx context.Context, id string) error {
+func (db *Conn) DeleteUser(ctx context.Context, id string, cid string) error {
 	result, err := db.ExecContext(ctx, deleteUser, id)
 	if err != nil {
 		return err
@@ -149,12 +150,12 @@ func (db *Conn) DeleteUser(ctx context.Context, id string) error {
 	return nil
 }
 
-func (db *Conn) CreateContact(ctx context.Context, id string, c *sharedv1.Contact) (string, error) {
+func (db *Conn) CreateContact(ctx context.Context, id string, c *sharedv1.Contact, cid string) (string, error) {
 	var err error
-	if c.User, err = db.GetUser(ctx, id); err != nil {
+	if c.User, err = db.GetUser(ctx, id, cid); err != nil {
 		return "", err
 	}
-	return db.AddContact(ctx, c)
+	return db.AddContact(ctx, c, cid)
 }
 
 func (db *Conn) updateBasicAuth(ctx context.Context, id string, loginSuccess, loginFailure *time.Time, failureCount uint8) error {

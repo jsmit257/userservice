@@ -29,8 +29,8 @@ func TestGetContact(t *testing.T) {
 						AddRow("1", "foo", "bar", "bill_to", "ship_to"))
 				mock.ExpectQuery(selectUser).
 					WillReturnRows(sqlmock.
-						NewRows([]string{"id", "name", "mtime"}).
-						AddRow("1", "foo", userMTime))
+						NewRows([]string{"name", "mtime", "dtime", "login_success"}).
+						AddRow("foo", userMTime, nil, nil))
 				mock.ExpectQuery(selectAddress).
 					WithArgs("bill_to").
 					WillReturnRows(sqlmock.
@@ -65,8 +65,8 @@ func TestGetContact(t *testing.T) {
 						AddRow("1", "foo", "bar", "", "ship_to"))
 				mock.ExpectQuery(selectUser).
 					WillReturnRows(sqlmock.
-						NewRows([]string{"id", "name", "mtime"}).
-						AddRow("1", "foo", userMTime))
+						NewRows([]string{"name", "mtime", "dtime", "login_success"}).
+						AddRow("foo", userMTime, nil, nil))
 				mock.ExpectQuery(selectAddress).
 					WithArgs("ship_to").
 					WillReturnRows(sqlmock.
@@ -95,8 +95,8 @@ func TestGetContact(t *testing.T) {
 						AddRow("1", "foo", "bar", "", ""))
 				mock.ExpectQuery(selectUser).
 					WillReturnRows(sqlmock.
-						NewRows([]string{"id", "name", "mtime"}).
-						AddRow("1", "foo", userMTime))
+						NewRows([]string{"name", "mtime", "dtime", "login_success"}).
+						AddRow("foo", userMTime, nil, nil))
 				return db
 			},
 			contact: &sharedv1.Contact{
@@ -142,8 +142,8 @@ func TestGetContact(t *testing.T) {
 				mock.ExpectQuery(selectUser).
 					WithArgs("1").
 					WillReturnRows(sqlmock.
-						NewRows([]string{"id", "name", "mtime"}).
-						AddRow("1", "foo", userMTime))
+						NewRows([]string{"name", "mtime", "dtime", "login_success"}).
+						AddRow("foo", userMTime, nil, nil))
 				mock.ExpectQuery(selectAddress).WithArgs("bill_to").WillReturnError(fmt.Errorf("some error"))
 				return db
 			},
@@ -160,8 +160,8 @@ func TestGetContact(t *testing.T) {
 				mock.ExpectQuery(selectUser).
 					WithArgs("1").
 					WillReturnRows(sqlmock.
-						NewRows([]string{"id", "name", "mtime"}).
-						AddRow("1", "foo", userMTime))
+						NewRows([]string{"name", "mtime", "dtime", "login_success"}).
+						AddRow("foo", userMTime, nil, nil))
 				mock.ExpectQuery(selectAddress).
 					WithArgs("bill_to").
 					WillReturnRows(sqlmock.
@@ -177,7 +177,7 @@ func TestGetContact(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			contact, err := (&Conn{tc.mockDB(), nil}).GetContact(context.Background(), "1")
+			contact, err := (&Conn{tc.mockDB(), nil}).GetContact(context.Background(), "1", "TestGetContact-"+name)
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.contact, contact)
 		})
@@ -244,7 +244,7 @@ func TestAddContact(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			result, err := (&Conn{tc.mockDB(), mockUUIDGen}).AddContact(context.Background(), tc.contact)
+			result, err := (&Conn{tc.mockDB(), mockUUIDGen}).AddContact(context.Background(), tc.contact, "TestAddContact-"+name)
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.result, result)
 		})
@@ -289,7 +289,7 @@ func TestUpdateContact(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.err, (&Conn{tc.mockDB(), nil}).UpdateContact(context.Background(), tc.contact))
+			require.Equal(t, tc.err, (&Conn{tc.mockDB(), nil}).UpdateContact(context.Background(), tc.contact, "TestUpdateContact-"+name))
 		})
 	}
 }
@@ -327,7 +327,10 @@ func TestDeleteContact(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.err, (&Conn{tc.mockDB(), nil}).DeleteContact(context.Background(), "1"))
+			require.Equal(
+				t,
+				tc.err,
+				(&Conn{tc.mockDB(), nil}).DeleteContact(context.Background(), "1", "TestDeleteContact-"+name))
 		})
 	}
 }

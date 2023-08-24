@@ -30,22 +30,22 @@ type mockUser struct {
 	createContactErr  error
 }
 
-func (mu *mockUser) BasicAuth(ctx context.Context, login *sharedv1.BasicAuth) (*sharedv1.User, error) {
+func (mu *mockUser) BasicAuth(ctx context.Context, login *sharedv1.BasicAuth, cid string) (*sharedv1.User, error) {
 	return mu.authenticateResp, mu.authenticateErr
 }
-func (mu *mockUser) GetUser(ctx context.Context, id string) (*sharedv1.User, error) {
+func (mu *mockUser) GetUser(ctx context.Context, id string, cid string) (*sharedv1.User, error) {
 	return mu.getUserResp, mu.getUserErr
 }
-func (mu *mockUser) AddUser(ctx context.Context, u *sharedv1.User) (string, error) {
+func (mu *mockUser) AddUser(ctx context.Context, u *sharedv1.User, cid string) (string, error) {
 	return mu.postUserResp.ID, mu.postUserErr
 }
-func (mu *mockUser) UpdateUser(ctx context.Context, u *sharedv1.User) error {
+func (mu *mockUser) UpdateUser(ctx context.Context, u *sharedv1.User, cid string) error {
 	return mu.patchUserErr
 }
-func (mu *mockUser) CreateContact(ctx context.Context, id string, c *sharedv1.Contact) (string, error) {
+func (mu *mockUser) CreateContact(ctx context.Context, id string, c *sharedv1.Contact, cid string) (string, error) {
 	return mu.createContactResp, mu.createContactErr
 }
-func (mu *mockUser) DeleteUser(ctx context.Context, id string) error { // unused
+func (mu *mockUser) DeleteUser(ctx context.Context, id string, cid string) error { // unused
 	return nil
 }
 

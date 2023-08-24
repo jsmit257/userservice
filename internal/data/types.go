@@ -9,19 +9,19 @@ import (
 type (
 	User interface {
 		// BasicAuth returns an authenticated user on success
-		BasicAuth(ctx context.Context, login *sharedv1.BasicAuth) (*sharedv1.User, error)
+		BasicAuth(ctx context.Context, login *sharedv1.BasicAuth, cid string) (*sharedv1.User, error)
 		// GetUser fetches a user by ID, or returns an error
-		GetUser(ctx context.Context, id string) (*sharedv1.User, error)
+		GetUser(ctx context.Context, id string, cid string) (*sharedv1.User, error)
 		// AddUser creates a new user, the happy return path is a *username*, not ID
 		// that can be used to call ResetPassword to complete an onboarding process;
 		// tokenized authn and such are the business of the api layer
-		AddUser(ctx context.Context, u *sharedv1.User) (string, error)
+		AddUser(ctx context.Context, u *sharedv1.User, cid string) (string, error)
 		// UpdateUser updates anything except password and salt; that's handled elsewhere
-		UpdateUser(ctx context.Context, u *sharedv1.User) error
+		UpdateUser(ctx context.Context, u *sharedv1.User, cid string) error
 		// DeleteUser shouldn't ever be called
-		DeleteUser(ctx context.Context, id string) error
+		DeleteUser(ctx context.Context, id string, cid string) error
 		// CreateContact adds a contact to the current user
-		CreateContact(ctx context.Context, id string, c *sharedv1.Contact) (string, error)
+		CreateContact(ctx context.Context, id string, c *sharedv1.Contact, cid string) (string, error)
 	}
 
 	Address interface {
@@ -40,17 +40,17 @@ type (
 	Contact interface {
 		// GetContact returns Contact details with non-nill user object and optional billto
 		// and shipto properties
-		GetContact(ctx context.Context, userID string) (*sharedv1.Contact, error)
+		GetContact(ctx context.Context, userID string, cid string) (*sharedv1.Contact, error)
 		// Addcontact creates a contact record associated with a user.id, but other referential
 		// fields ignored; manage billing/shipping/user or whatever elsewhere; this should
 		// probably only be called from User.CreateContact(string, *sharedv1.Contact), not from
 		// the API
-		AddContact(ctx context.Context, c *sharedv1.Contact) (string, error)
+		AddContact(ctx context.Context, c *sharedv1.Contact, cid string) (string, error)
 		// UpdateContact updates the non-referential fields in a contact; if e.g. a bill_to
 		// object were present it would be ignored; that functionality is handled elsewhere
-		UpdateContact(ctx context.Context, c *sharedv1.Contact) error
+		UpdateContact(ctx context.Context, c *sharedv1.Contact, cid string) error
 		// DeleteContact shouldn't ever be called
-		DeleteContact(ctx context.Context, id string) error
+		DeleteContact(ctx context.Context, id string, cid string) error
 		// SetDefaultBillto
 		// SetDefaultShipto
 		// GetBillTos

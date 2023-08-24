@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/jsmit257/userservice/internal/data"
 	"github.com/jsmit257/userservice/internal/metrics"
 
@@ -44,4 +45,8 @@ func NewInstance(us *UserService, hostAddr string, hostPort uint16, mtrcs http.H
 func hc(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("OK"))
+}
+
+func cid() string {
+	return uuid.NewString()
 }

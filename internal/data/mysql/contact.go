@@ -15,7 +15,7 @@ const (
 	updateContact = "update contacts set lastname = ?, firstname = ?, mtime = ? where id = ?"
 )
 
-func (db *Conn) GetContact(ctx context.Context, userID string) (*sharedv1.Contact, error) {
+func (db *Conn) GetContact(ctx context.Context, userID string, cid string) (*sharedv1.Contact, error) {
 	var billto, shipto string
 	result := &sharedv1.Contact{}
 
@@ -24,7 +24,7 @@ func (db *Conn) GetContact(ctx context.Context, userID string) (*sharedv1.Contac
 	err := contactRow.Scan(&result.ID, &result.FirstName, &result.LastName, &billto, &shipto)
 	if err != nil {
 		return nil, err
-	} else if result.User, err = db.GetUser(ctx, userID); err != nil {
+	} else if result.User, err = db.GetUser(ctx, userID, cid); err != nil {
 		return nil, err
 	}
 
@@ -42,7 +42,7 @@ func (db *Conn) GetContact(ctx context.Context, userID string) (*sharedv1.Contac
 	return result, nil
 }
 
-func (db *Conn) AddContact(ctx context.Context, c *sharedv1.Contact) (string, error) {
+func (db *Conn) AddContact(ctx context.Context, c *sharedv1.Contact, cid string) (string, error) {
 	if c.User == nil {
 		return "", fmt.Errorf("contact requires a user")
 	} else if c.User.ID == "" {
@@ -60,7 +60,7 @@ func (db *Conn) AddContact(ctx context.Context, c *sharedv1.Contact) (string, er
 	return id.String(), nil
 }
 
-func (db *Conn) UpdateContact(ctx context.Context, c *sharedv1.Contact) error {
+func (db *Conn) UpdateContact(ctx context.Context, c *sharedv1.Contact, cid string) error {
 	// disregard values for Contact.{User,BillTo,ShipTo}; those fields and their attendant objects are managed elsewhere
 	if result, err := db.ExecContext(ctx, updateContact, c.LastName, c.FirstName, time.Now().UTC(), c.ID); err != nil {
 		return err
@@ -72,7 +72,7 @@ func (db *Conn) UpdateContact(ctx context.Context, c *sharedv1.Contact) error {
 	return nil
 }
 
-func (db *Conn) DeleteContact(ctx context.Context, id string) error {
+func (db *Conn) DeleteContact(ctx context.Context, id string, cid string) error {
 	result, err := db.ExecContext(ctx, deleteContact, id)
 	if err != nil {
 		return err

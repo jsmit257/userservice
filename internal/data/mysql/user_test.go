@@ -49,6 +49,8 @@ func TestBasicAuth(t *testing.T) {
 				MTime: userMTime,
 			},
 		},
+		// "bad_username":     {},
+		// "password_lockout": {},
 		"selectRow_fails": {
 			mockDB: func() *sql.DB {
 				db, mock, _ := sqlmock.New()
@@ -76,6 +78,9 @@ func TestBasicAuth(t *testing.T) {
 			},
 			err: fmt.Errorf("bad username or password"),
 		},
+		// "update_failure_count_fails": {},
+		// "update_success_fails": {},
+		// "no_rows_updated": {},
 		"authn_fails": {
 			mockDB: func() *sql.DB {
 				db, mock, _ := sqlmock.New()
@@ -98,7 +103,7 @@ func TestBasicAuth(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			user, err := (&Conn{tc.mockDB(), nil}).BasicAuth(context.Background(), tc.login)
+			user, err := (&Conn{tc.mockDB(), nil}).BasicAuth(context.Background(), tc.login, "TestBasicAuth-"+name)
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.user, user)
 		})
@@ -117,8 +122,8 @@ func TestGetUser(t *testing.T) {
 				db, mock, _ := sqlmock.New()
 				mock.ExpectQuery(selectUser).
 					WillReturnRows(sqlmock.
-						NewRows([]string{"id", "name", "mtime"}).
-						AddRow("1", "foo", userMTime))
+						NewRows([]string{"name", "mtime", "dtime", "login_success"}).
+						AddRow("foo", userMTime, nil, nil))
 				return db
 			},
 			user: &sharedv1.User{
@@ -133,7 +138,7 @@ func TestGetUser(t *testing.T) {
 				mock.ExpectQuery(selectUser).WillReturnError(fmt.Errorf("some error"))
 				return db
 			},
-			user: &sharedv1.User{},
+			user: &sharedv1.User{ID: "1"},
 			err:  fmt.Errorf("some error"),
 		},
 	}
@@ -141,7 +146,7 @@ func TestGetUser(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			user, err := (&Conn{tc.mockDB(), nil}).GetUser(context.Background(), "1")
+			user, err := (&Conn{tc.mockDB(), nil}).GetUser(context.Background(), "1", "TestGetUser-"+name)
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.user, user)
 		})
@@ -190,7 +195,7 @@ func TestAddUser(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			result, err := (&Conn{tc.mockDB(), mockUUIDGen}).AddUser(context.Background(), tc.user)
+			result, err := (&Conn{tc.mockDB(), mockUUIDGen}).AddUser(context.Background(), tc.user, "TestAddUser-"+name)
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.result, result)
 		})
@@ -209,8 +214,8 @@ func TestUpdateUser(t *testing.T) {
 				db, mock, _ := sqlmock.New()
 				mock.ExpectQuery(selectUser).
 					WillReturnRows(sqlmock.
-						NewRows([]string{"id", "name", "mtime"}).
-						AddRow("1", "old username", userMTime))
+						NewRows([]string{"name", "mtime", "dtime", "login_success"}).
+						AddRow("old username", userMTime, nil, nil))
 				mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 1))
 				return db
 			},
@@ -231,8 +236,8 @@ func TestUpdateUser(t *testing.T) {
 				db, mock, _ := sqlmock.New()
 				mock.ExpectQuery(selectUser).
 					WillReturnRows(sqlmock.
-						NewRows([]string{"id", "name", "mtime"}).
-						AddRow("1", "nothing to update", userMTime))
+						NewRows([]string{"name", "mtime", "dtime", "login_success"}).
+						AddRow("nothing to update", userMTime, nil, nil))
 				mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 1))
 				return db
 			},
@@ -243,8 +248,8 @@ func TestUpdateUser(t *testing.T) {
 				db, mock, _ := sqlmock.New()
 				mock.ExpectQuery(selectUser).
 					WillReturnRows(sqlmock.
-						NewRows([]string{"id", "name", "mtime"}).
-						AddRow("1", "old exec fails", userMTime))
+						NewRows([]string{"name", "mtime", "dtime", "login_success"}).
+						AddRow("old exec fails", userMTime, nil, nil))
 				mock.ExpectExec(".*").WillReturnError(fmt.Errorf("exec fails"))
 				return db
 			},
@@ -256,20 +261,24 @@ func TestUpdateUser(t *testing.T) {
 				db, mock, _ := sqlmock.New()
 				mock.ExpectQuery(selectUser).
 					WillReturnRows(sqlmock.
-						NewRows([]string{"id", "name", "mtime"}).
-						AddRow("1", "old update fails", userMTime))
+						NewRows([]string{"name", "mtime", "dtime", "login_success"}).
+						AddRow("old update fails", userMTime, nil, nil))
 				mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 12))
 				return db
 			},
 			user: &sharedv1.User{ID: "1", Name: "update fails", MTime: userMTime},
 			err:  fmt.Errorf("user was not updated: '1'"),
 		},
+		// "get_rows_affected_fails": {},
 	}
 	for name, tc := range tcs {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.err, (&Conn{tc.mockDB(), nil}).UpdateUser(context.Background(), tc.user))
+			require.Equal(
+				t,
+				tc.err,
+				(&Conn{tc.mockDB(), nil}).UpdateUser(context.Background(), tc.user, "TestUpdateUser-"+name))
 		})
 	}
 }
@@ -295,6 +304,7 @@ func TestDeleteUser(t *testing.T) {
 			},
 			err: fmt.Errorf("some error"),
 		},
+		// "get_rows_affected_fails": {},
 		"user_not_found": {
 			mockDB: func() *sql.DB {
 				db, mock, _ := sqlmock.New()
@@ -308,7 +318,10 @@ func TestDeleteUser(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.err, (&Conn{tc.mockDB(), nil}).DeleteUser(context.Background(), "1"))
+			require.Equal(
+				t,
+				tc.err,
+				(&Conn{tc.mockDB(), nil}).DeleteUser(context.Background(), "1", "TestDeleteUser-"+name))
 		})
 	}
 }
@@ -326,8 +339,8 @@ func TestCreateContact(t *testing.T) {
 				db, mock, _ := sqlmock.New()
 				mock.ExpectQuery(selectUser).
 					WillReturnRows(sqlmock.
-						NewRows([]string{"id", "name", "mtime"}).
-						AddRow("1", "foo", userMTime))
+						NewRows([]string{"name", "mtime", "dtime", "login_success"}).
+						AddRow("foo", userMTime, nil, nil))
 				mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 1))
 				return db
 			},
@@ -349,7 +362,8 @@ func TestCreateContact(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			result, err := (&Conn{tc.mockDB(), mockUUIDGen}).CreateContact(context.Background(), "1", tc.contact)
+			result, err := (&Conn{tc.mockDB(), mockUUIDGen}).
+				CreateContact(context.Background(), "1", tc.contact, "TestCreateContact-"+name)
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.result, result)
 		})
