@@ -103,7 +103,7 @@ func TestBasicAuth(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			user, err := (&Conn{tc.mockDB(), nil}).BasicAuth(context.Background(), tc.login, "TestBasicAuth-"+name)
+			user, err := (&Conn{tc.mockDB(), nil}).BasicAuth(context.Background(), tc.login, sharedv1.CID("TestBasicAuth-"+name))
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.user, user)
 		})
@@ -146,7 +146,7 @@ func TestGetUser(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			user, err := (&Conn{tc.mockDB(), nil}).GetUser(context.Background(), "1", "TestGetUser-"+name)
+			user, err := (&Conn{tc.mockDB(), nil}).GetUser(context.Background(), "1", sharedv1.CID("TestGetUser-"+name))
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.user, user)
 		})
@@ -195,7 +195,7 @@ func TestAddUser(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			result, err := (&Conn{tc.mockDB(), mockUUIDGen}).AddUser(context.Background(), tc.user, "TestAddUser-"+name)
+			result, err := (&Conn{tc.mockDB(), mockUUIDGen}).AddUser(context.Background(), tc.user, sharedv1.CID("TestAddUser-"+name))
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.result, result)
 		})
@@ -278,7 +278,7 @@ func TestUpdateUser(t *testing.T) {
 			require.Equal(
 				t,
 				tc.err,
-				(&Conn{tc.mockDB(), nil}).UpdateUser(context.Background(), tc.user, "TestUpdateUser-"+name))
+				(&Conn{tc.mockDB(), nil}).UpdateUser(context.Background(), tc.user, sharedv1.CID("TestUpdateUser-"+name)))
 		})
 	}
 }
@@ -321,7 +321,7 @@ func TestDeleteUser(t *testing.T) {
 			require.Equal(
 				t,
 				tc.err,
-				(&Conn{tc.mockDB(), nil}).DeleteUser(context.Background(), "1", "TestDeleteUser-"+name))
+				(&Conn{tc.mockDB(), nil}).DeleteUser(context.Background(), "1", sharedv1.CID("TestDeleteUser-"+name)))
 		})
 	}
 }
@@ -363,7 +363,7 @@ func TestCreateContact(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			result, err := (&Conn{tc.mockDB(), mockUUIDGen}).
-				CreateContact(context.Background(), "1", tc.contact, "TestCreateContact-"+name)
+				CreateContact(context.Background(), "1", tc.contact, sharedv1.CID("TestCreateContact-"+name))
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.result, result)
 		})

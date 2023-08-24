@@ -30,7 +30,7 @@ var (
 	UserNotAddedError = fmt.Errorf("user was not added")
 )
 
-func (db *Conn) BasicAuth(ctx context.Context, login *sharedv1.BasicAuth, cid string) (*sharedv1.User, error) {
+func (db *Conn) BasicAuth(ctx context.Context, login *sharedv1.BasicAuth, cid sharedv1.CID) (*sharedv1.User, error) {
 	m := mtrcs.MustCurryWith(prometheus.Labels{"method": "BasicAuth"})
 
 	var id, pass, salt string
@@ -79,7 +79,7 @@ func (db *Conn) BasicAuth(ctx context.Context, login *sharedv1.BasicAuth, cid st
 	return user, err
 }
 
-func (db *Conn) GetUser(ctx context.Context, id string, cid string) (*sharedv1.User, error) {
+func (db *Conn) GetUser(ctx context.Context, id string, cid sharedv1.CID) (*sharedv1.User, error) {
 	result := &sharedv1.User{ID: id}
 
 	return result, db.
@@ -87,7 +87,7 @@ func (db *Conn) GetUser(ctx context.Context, id string, cid string) (*sharedv1.U
 		Scan(&result.Name, &result.MTime, &result.DTime, &result.LoginSuccess)
 }
 
-func (db *Conn) AddUser(ctx context.Context, u *sharedv1.User, cid string) (string, error) {
+func (db *Conn) AddUser(ctx context.Context, u *sharedv1.User, cid sharedv1.CID) (string, error) {
 	salt, now := generateSalt(), time.Now().UTC()
 	result, err := db.ExecContext(ctx, insertUser,
 		db.generateUUID(),
@@ -116,7 +116,7 @@ func (db *Conn) AddUser(ctx context.Context, u *sharedv1.User, cid string) (stri
 	return u.Name, nil
 }
 
-func (db *Conn) UpdateUser(ctx context.Context, u *sharedv1.User, cid string) error {
+func (db *Conn) UpdateUser(ctx context.Context, u *sharedv1.User, cid sharedv1.CID) error {
 	curr, err := db.GetUser(ctx, u.ID, cid)
 	if err != nil {
 		return fmt.Errorf("failed to fetch user: '%s' %w", u.ID, err)
@@ -138,7 +138,7 @@ func (db *Conn) UpdateUser(ctx context.Context, u *sharedv1.User, cid string) er
 	return nil
 }
 
-func (db *Conn) DeleteUser(ctx context.Context, id string, cid string) error {
+func (db *Conn) DeleteUser(ctx context.Context, id string, cid sharedv1.CID) error {
 	result, err := db.ExecContext(ctx, deleteUser, id)
 	if err != nil {
 		return err
@@ -150,7 +150,7 @@ func (db *Conn) DeleteUser(ctx context.Context, id string, cid string) error {
 	return nil
 }
 
-func (db *Conn) CreateContact(ctx context.Context, id string, c *sharedv1.Contact, cid string) (string, error) {
+func (db *Conn) CreateContact(ctx context.Context, id string, c *sharedv1.Contact, cid sharedv1.CID) (string, error) {
 	var err error
 	if c.User, err = db.GetUser(ctx, id, cid); err != nil {
 		return "", err

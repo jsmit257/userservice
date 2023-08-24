@@ -15,7 +15,7 @@ const (
 	updateAddress = "update addresses set street1 = ?, street2 = ?, city = ?, state = ?, country = ?, zip = ?, mtime = ? where id = ?"
 )
 
-func (db *Conn) GetAddress(ctx context.Context, id string) (*sharedv1.Address, error) {
+func (db *Conn) GetAddress(ctx context.Context, id string, cid sharedv1.CID) (*sharedv1.Address, error) {
 	result := &sharedv1.Address{}
 
 	return result, db.
@@ -23,7 +23,7 @@ func (db *Conn) GetAddress(ctx context.Context, id string) (*sharedv1.Address, e
 		Scan(&result.ID)
 }
 
-func (db *Conn) AddAddress(ctx context.Context, addr *sharedv1.Address) (string, error) {
+func (db *Conn) AddAddress(ctx context.Context, addr *sharedv1.Address, cid sharedv1.CID) (string, error) {
 	now := time.Now().UTC()
 	addr.ID, addr.MTime, addr.CTime = db.generateUUID().String(), now, now
 	result, err := db.ExecContext(ctx, insertAddress,
@@ -40,7 +40,7 @@ func (db *Conn) AddAddress(ctx context.Context, addr *sharedv1.Address) (string,
 		// FIXME: choose what to do based on the tupe of error
 		duplicatePrimaryKeyErr := false
 		if duplicatePrimaryKeyErr {
-			return db.AddAddress(ctx, addr) // FIXME: infinite loop?
+			return db.AddAddress(ctx, addr, cid) // FIXME: infinite loop?
 		}
 		return "", err
 	} else if rows, err := result.RowsAffected(); err != nil {
@@ -51,8 +51,8 @@ func (db *Conn) AddAddress(ctx context.Context, addr *sharedv1.Address) (string,
 	return addr.ID, nil
 }
 
-func (db *Conn) UpdateAddress(ctx context.Context, addr *sharedv1.Address) error {
-	oldaddr, err := db.GetAddress(ctx, addr.ID)
+func (db *Conn) UpdateAddress(ctx context.Context, addr *sharedv1.Address, cid sharedv1.CID) error {
+	oldaddr, err := db.GetAddress(ctx, addr.ID, cid)
 	if err != nil {
 		return err
 	}
@@ -85,7 +85,7 @@ func (db *Conn) UpdateAddress(ctx context.Context, addr *sharedv1.Address) error
 	return nil
 }
 
-func (db *Conn) DeleteAddress(ctx context.Context, id string) error {
+func (db *Conn) DeleteAddress(ctx context.Context, id string, cid sharedv1.CID) error {
 	result, err := db.ExecContext(ctx, deleteAddress, id)
 	if err != nil {
 		return err

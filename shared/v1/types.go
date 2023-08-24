@@ -5,6 +5,8 @@ import (
 )
 
 type (
+	CID string
+
 	BasicAuth struct {
 		Name string `json:"username" mysql:"name"`
 		Pass string `json:"password" mysql:"password"`

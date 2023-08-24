@@ -177,7 +177,7 @@ func TestGetContact(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			contact, err := (&Conn{tc.mockDB(), nil}).GetContact(context.Background(), "1", "TestGetContact-"+name)
+			contact, err := (&Conn{tc.mockDB(), nil}).GetContact(context.Background(), "1", sharedv1.CID("TestGetContact-"+name))
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.contact, contact)
 		})
@@ -244,7 +244,7 @@ func TestAddContact(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			result, err := (&Conn{tc.mockDB(), mockUUIDGen}).AddContact(context.Background(), tc.contact, "TestAddContact-"+name)
+			result, err := (&Conn{tc.mockDB(), mockUUIDGen}).AddContact(context.Background(), tc.contact, sharedv1.CID("TestAddContact-"+name))
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.result, result)
 		})
@@ -289,7 +289,7 @@ func TestUpdateContact(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.err, (&Conn{tc.mockDB(), nil}).UpdateContact(context.Background(), tc.contact, "TestUpdateContact-"+name))
+			require.Equal(t, tc.err, (&Conn{tc.mockDB(), nil}).UpdateContact(context.Background(), tc.contact, sharedv1.CID("TestUpdateContact-"+name)))
 		})
 	}
 }
@@ -330,7 +330,7 @@ func TestDeleteContact(t *testing.T) {
 			require.Equal(
 				t,
 				tc.err,
-				(&Conn{tc.mockDB(), nil}).DeleteContact(context.Background(), "1", "TestDeleteContact-"+name))
+				(&Conn{tc.mockDB(), nil}).DeleteContact(context.Background(), "1", sharedv1.CID("TestDeleteContact-"+name)))
 		})
 	}
 }

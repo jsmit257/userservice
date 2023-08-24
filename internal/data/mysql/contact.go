@@ -15,7 +15,7 @@ const (
 	updateContact = "update contacts set lastname = ?, firstname = ?, mtime = ? where id = ?"
 )
 
-func (db *Conn) GetContact(ctx context.Context, userID string, cid string) (*sharedv1.Contact, error) {
+func (db *Conn) GetContact(ctx context.Context, userID string, cid sharedv1.CID) (*sharedv1.Contact, error) {
 	var billto, shipto string
 	result := &sharedv1.Contact{}
 
@@ -29,20 +29,20 @@ func (db *Conn) GetContact(ctx context.Context, userID string, cid string) (*sha
 	}
 
 	if billto != "" {
-		if result.BillTo, err = db.GetAddress(ctx, billto); err != nil {
+		if result.BillTo, err = db.GetAddress(ctx, billto, cid); err != nil {
 			return nil, err
 		}
 	}
 
 	if shipto != "" {
-		if result.ShipTo, err = db.GetAddress(ctx, shipto); err != nil {
+		if result.ShipTo, err = db.GetAddress(ctx, shipto, cid); err != nil {
 			return nil, err
 		}
 	}
 	return result, nil
 }
 
-func (db *Conn) AddContact(ctx context.Context, c *sharedv1.Contact, cid string) (string, error) {
+func (db *Conn) AddContact(ctx context.Context, c *sharedv1.Contact, cid sharedv1.CID) (string, error) {
 	if c.User == nil {
 		return "", fmt.Errorf("contact requires a user")
 	} else if c.User.ID == "" {
@@ -60,7 +60,7 @@ func (db *Conn) AddContact(ctx context.Context, c *sharedv1.Contact, cid string)
 	return id.String(), nil
 }
 
-func (db *Conn) UpdateContact(ctx context.Context, c *sharedv1.Contact, cid string) error {
+func (db *Conn) UpdateContact(ctx context.Context, c *sharedv1.Contact, cid sharedv1.CID) error {
 	// disregard values for Contact.{User,BillTo,ShipTo}; those fields and their attendant objects are managed elsewhere
 	if result, err := db.ExecContext(ctx, updateContact, c.LastName, c.FirstName, time.Now().UTC(), c.ID); err != nil {
 		return err
@@ -72,7 +72,7 @@ func (db *Conn) UpdateContact(ctx context.Context, c *sharedv1.Contact, cid stri
 	return nil
 }
 
-func (db *Conn) DeleteContact(ctx context.Context, id string, cid string) error {
+func (db *Conn) DeleteContact(ctx context.Context, id string, cid sharedv1.CID) error {
 	result, err := db.ExecContext(ctx, deleteContact, id)
 	if err != nil {
 		return err

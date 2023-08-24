@@ -50,7 +50,9 @@ func TestGetAddress(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			addr, err := (&Conn{tc.mockDB(), nil}).GetAddress(context.Background(), "1")
+			cid := sharedv1.CID("TestGetAddress-" + name)
+			addr, err := (&Conn{tc.mockDB(), nil}).
+				GetAddress(context.Background(), "1", cid)
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.addr, addr)
 		})
@@ -97,7 +99,9 @@ func TestAddAddress(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			uuid, err := (&Conn{tc.mockDB(), mockUUIDGen}).AddAddress(context.Background(), tc.addr)
+			cid := sharedv1.CID("TestGetAddress-" + name)
+			uuid, err := (&Conn{tc.mockDB(), mockUUIDGen}).
+				AddAddress(context.Background(), tc.addr, cid)
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.uuid, uuid)
 		})
@@ -175,7 +179,9 @@ func TestUpdateAddress(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.err, (&Conn{tc.mockDB(), nil}).UpdateAddress(context.Background(), tc.addr))
+			cid := sharedv1.CID("TestGetAddress-" + name)
+			require.Equal(t, tc.err, (&Conn{tc.mockDB(), nil}).
+				UpdateAddress(context.Background(), tc.addr, cid))
 		})
 	}
 }
@@ -214,7 +220,12 @@ func TestDeleteAddress(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.err, (&Conn{tc.mockDB(), nil}).DeleteAddress(context.Background(), ""))
+			cid := sharedv1.CID("TestDeleteAddress-" + name)
+			require.Equal(
+				t,
+				tc.err,
+				(&Conn{tc.mockDB(), nil}).
+					DeleteAddress(context.Background(), "", cid))
 		})
 	}
 }

@@ -18,8 +18,8 @@ package-serve-mysql: compile-serve-mysql
 test-serve-mysql: docker-down build
 	docker-compose up --build --force-recreate test-serve-mysql
 
-.PHONY: system
-system: docker-down package-serve-mysql
+.PHONY: system-test
+system-test: docker-down package-serve-mysql
 	docker-compose up --build --force-recreate schema
 	docker-compose up serve-mysql &
 	sleep 2s

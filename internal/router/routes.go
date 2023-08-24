@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jsmit257/userservice/internal/data"
 	"github.com/jsmit257/userservice/internal/metrics"
+	sharedv1 "github.com/jsmit257/userservice/shared/v1"
 
 	"github.com/go-chi/chi/v5"
 
@@ -47,6 +48,6 @@ func hc(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte("OK"))
 }
 
-func cid() string {
-	return uuid.NewString()
+func cid() sharedv1.CID {
+	return sharedv1.CID(uuid.NewString())
 }
