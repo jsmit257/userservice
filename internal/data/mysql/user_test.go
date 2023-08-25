@@ -11,6 +11,8 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,6 +20,7 @@ var userMTime = time.Now()
 
 func TestBasicAuth(t *testing.T) {
 	t.Parallel()
+	l := log.WithFields(log.Fields{"app": "user_test.go", "test": "TestBasicAuth"})
 	tcs := map[string]struct {
 		mockDB getMockDB
 		login  *sharedv1.BasicAuth
@@ -103,7 +106,7 @@ func TestBasicAuth(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			user, err := (&Conn{tc.mockDB(), nil}).BasicAuth(context.Background(), tc.login, sharedv1.CID("TestBasicAuth-"+name))
+			user, err := (&Conn{tc.mockDB(), nil, l}).BasicAuth(context.Background(), tc.login, sharedv1.CID("TestBasicAuth-"+name))
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.user, user)
 		})
@@ -112,6 +115,7 @@ func TestBasicAuth(t *testing.T) {
 
 func TestGetUser(t *testing.T) {
 	t.Parallel()
+	l := log.WithFields(log.Fields{"app": "user_test.go", "test": "TestGetUser"})
 	tcs := map[string]struct {
 		mockDB getMockDB
 		user   *sharedv1.User
@@ -146,7 +150,7 @@ func TestGetUser(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			user, err := (&Conn{tc.mockDB(), nil}).GetUser(context.Background(), "1", sharedv1.CID("TestGetUser-"+name))
+			user, err := (&Conn{tc.mockDB(), nil, l}).GetUser(context.Background(), "1", sharedv1.CID("TestGetUser-"+name))
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.user, user)
 		})
@@ -155,6 +159,7 @@ func TestGetUser(t *testing.T) {
 
 func TestAddUser(t *testing.T) {
 	t.Parallel()
+	l := log.WithFields(log.Fields{"app": "user_test.go", "test": "TestAddUser"})
 	tcs := map[string]struct {
 		mockDB getMockDB
 		user   *sharedv1.User
@@ -195,7 +200,7 @@ func TestAddUser(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			result, err := (&Conn{tc.mockDB(), mockUUIDGen}).AddUser(context.Background(), tc.user, sharedv1.CID("TestAddUser-"+name))
+			result, err := (&Conn{tc.mockDB(), mockUUIDGen, l}).AddUser(context.Background(), tc.user, sharedv1.CID("TestAddUser-"+name))
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.result, result)
 		})
@@ -204,6 +209,7 @@ func TestAddUser(t *testing.T) {
 
 func TestUpdateUser(t *testing.T) {
 	t.Parallel()
+	l := log.WithFields(log.Fields{"app": "user_test.go", "test": "TestUpdateUser"})
 	tcs := map[string]struct {
 		mockDB getMockDB
 		user   *sharedv1.User
@@ -278,13 +284,14 @@ func TestUpdateUser(t *testing.T) {
 			require.Equal(
 				t,
 				tc.err,
-				(&Conn{tc.mockDB(), nil}).UpdateUser(context.Background(), tc.user, sharedv1.CID("TestUpdateUser-"+name)))
+				(&Conn{tc.mockDB(), nil, l}).UpdateUser(context.Background(), tc.user, sharedv1.CID("TestUpdateUser-"+name)))
 		})
 	}
 }
 
 func TestDeleteUser(t *testing.T) {
 	t.Parallel()
+	l := log.WithFields(log.Fields{"app": "user_test.go", "test": "TestDeleteUser"})
 	tcs := map[string]struct {
 		mockDB getMockDB
 		err    error
@@ -321,13 +328,14 @@ func TestDeleteUser(t *testing.T) {
 			require.Equal(
 				t,
 				tc.err,
-				(&Conn{tc.mockDB(), nil}).DeleteUser(context.Background(), "1", sharedv1.CID("TestDeleteUser-"+name)))
+				(&Conn{tc.mockDB(), nil, l}).DeleteUser(context.Background(), "1", sharedv1.CID("TestDeleteUser-"+name)))
 		})
 	}
 }
 
 func TestCreateContact(t *testing.T) {
 	t.Parallel()
+	l := log.WithFields(log.Fields{"app": "user_test.go", "test": "TestCreateContact"})
 	tcs := map[string]struct {
 		mockDB  getMockDB
 		contact *sharedv1.Contact
@@ -362,7 +370,7 @@ func TestCreateContact(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			result, err := (&Conn{tc.mockDB(), mockUUIDGen}).
+			result, err := (&Conn{tc.mockDB(), mockUUIDGen, l}).
 				CreateContact(context.Background(), "1", tc.contact, sharedv1.CID("TestCreateContact-"+name))
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.result, result)

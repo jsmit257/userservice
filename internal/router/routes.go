@@ -12,6 +12,8 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/prometheus/client_golang/prometheus"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type UserService struct {
@@ -22,10 +24,10 @@ type UserService struct {
 
 var mtrcs = metrics.ServiceMetrics.MustCurryWith(prometheus.Labels{})
 
-func NewInstance(us *UserService, hostAddr string, hostPort uint16, mtrcs http.HandlerFunc) *http.Server {
+func NewInstance(us *UserService, hostAddr string, hostPort uint16, mtrcs http.HandlerFunc, logger *log.Entry) *http.Server {
 	r := chi.NewRouter()
 
-	// r.Use(middleware.Logger)
+	// r.Use(middleware.Logger(logger))
 
 	r.Get("/user/{user_id}", us.GetUser)
 	r.Patch("/user/{user_id}", us.PatchUser)

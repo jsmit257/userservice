@@ -17,6 +17,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const APP_NAME = "serve-mysql"
+
 var traps = []os.Signal{
 	os.Interrupt,
 	syscall.SIGTERM,
@@ -26,25 +28,47 @@ var traps = []os.Signal{
 func main() {
 	cfg := NewConfig()
 
+	// TODO:
+	//   - os.MkdirAll(cfg.LogDir)
+	//   - logFileBasePath := cfg.LogDir + os.PathSeparator + cfg.LogFileName
+	//   - logFilePath := logFileBasePath + os.Process.Pid
+	//   - var logWriter *io.Writer
+	//   - if logFile, err := os.OpenFile(logFilePath, os.O_CREATE+os.???, 644); err != nil {
+	//   - 	panic(fmt.Errorf("can't create logfile: '%s'", logFilePath))
+	//   - } else {
+	//   - 	logWriter = bufio.NewWriter(logFile)
+	//   - 	defer logFile.Close()
+	//   - }
+	//   - os.Link(logFilePath, logFileBasePath)
+	//   - log.SetOutput(logWriter)
 	log.SetOutput(os.Stdout)
+	// TODO: log.SetLevel(log.Level(cfg.LogLevel))
 	log.SetLevel(log.DebugLevel)
 	// log.SetReportCaller(true) // this seems expensive, maybe nice to have, check it out before enabling
 	log.SetFormatter(&log.JSONFormatter{})
 
-	l := log.WithField("cfg", cfg)
+	logger := log.WithField("app", APP_NAME)
+
+	logger.Debug("loaded config")
 
 	mtrcs := metrics.NewHandler(prometheus.NewRegistry())
 
 	mysql, err := mysql.NewInstance(
 		cfg.MySQLUser,
-		cfg.MySQLRootPwd,
+		cfg.MySQLPwd,
 		cfg.MySQLHost,
-		cfg.MySQLPort)
+		cfg.MySQLPort,
+		logger)
+	cfg.MySQLPwd = "*****" // kinda rude
 	if err != nil {
-		l.WithError(err).Fatal("failed to start client")
+		logger.
+			WithFields(log.Fields{"cfg": cfg}).
+			WithError(err).
+			Fatal("failed to connect mysql client")
+		return
 	}
 
-	l.Debug("configured userservice")
+	logger.Debug("configured mysql client")
 
 	srv := router.NewInstance(
 		&router.UserService{
@@ -54,7 +78,8 @@ func main() {
 		},
 		cfg.ServerHost,
 		cfg.ServerPort,
-		mtrcs)
+		mtrcs,
+		logger)
 
 	wg := &sync.WaitGroup{}
 
@@ -62,28 +87,35 @@ func main() {
 	go func(srv *http.Server, wg *sync.WaitGroup) {
 		defer wg.Done()
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-			l.WithError(err).Fatal("http server didn't start properly")
+			logger.
+				WithFields(log.Fields{"cfg": cfg}).
+				WithError(err).
+				Fatal("http server didn't start properly")
+			panic(err)
 		}
-		l.Debug("http server shutdown complete")
+		logger.Debug("http server shutdown complete")
 	}(srv, wg)
 
-	trap()
+	trap(logger)
 
 	timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(timeout); err != nil {
-		l.WithError(err).Error("error stopping server")
+		logger.
+			WithFields(log.Fields{"cfg": cfg}).
+			WithError(err).
+			Error("error stopping server")
 	}
 
 	wg.Wait()
 
-	l.Debug("done")
+	logger.Debug("done")
 }
 
-func trap() {
+func trap(logger *log.Entry) {
 	trapped := make(chan os.Signal, len(traps))
 
 	signal.Notify(trapped, traps...)
 
-	log.WithField("sig", <-trapped).Info("stopping app with signal") // FIXME:
+	logger.WithField("sig", <-trapped).Info("stopping app with signal")
 }

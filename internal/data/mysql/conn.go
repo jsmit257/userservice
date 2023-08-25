@@ -26,6 +26,7 @@ type (
 	Conn struct {
 		query
 		generateUUID uuidgen
+		logger       *log.Entry
 	}
 
 	uuidgen func() uuid.UUID
@@ -35,8 +36,8 @@ type (
 
 var mtrcs = metrics.DataMetrics.MustCurryWith(prometheus.Labels{"pkg": "mysql"})
 
-func NewInstance(dbuser, dbpass, dbhost string, dbport uint16) (*Conn, error) {
-	l := log.WithFields(log.Fields{
+func NewInstance(dbuser, dbpass, dbhost string, dbport uint16, logger *log.Entry) (*Conn, error) {
+	l := logger.WithFields(log.Fields{
 		"mysql_user":     dbuser,
 		"mysql_hostname": dbhost,
 		"mysql_port":     dbport,
@@ -52,7 +53,7 @@ func NewInstance(dbuser, dbpass, dbhost string, dbport uint16) (*Conn, error) {
 		return nil, err
 	}
 	l.Info("successfully connected to mysql")
-	return &Conn{db, uuid.New}, nil
+	return &Conn{db, uuid.New, l}, nil
 }
 
 func mockUUIDGen() uuid.UUID {

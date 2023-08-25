@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	sharedv1 "github.com/jsmit257/userservice/shared/v1"
+	log "github.com/sirupsen/logrus"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 
@@ -15,6 +16,7 @@ import (
 
 func TestGetAddress(t *testing.T) {
 	t.Parallel()
+	l := log.WithFields(log.Fields{"app": "address_test.go", "test": "TestGetAddress"})
 	tcs := map[string]struct {
 		mockDB getMockDB
 		addr   *sharedv1.Address
@@ -51,7 +53,7 @@ func TestGetAddress(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			cid := sharedv1.CID("TestGetAddress-" + name)
-			addr, err := (&Conn{tc.mockDB(), nil}).
+			addr, err := (&Conn{tc.mockDB(), nil, l}).
 				GetAddress(context.Background(), "1", cid)
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.addr, addr)
@@ -61,6 +63,7 @@ func TestGetAddress(t *testing.T) {
 
 func TestAddAddress(t *testing.T) {
 	t.Parallel()
+	l := log.WithFields(log.Fields{"app": "address_test.go", "test": "TestAddAddress"})
 	tcs := map[string]struct {
 		mockDB getMockDB
 		addr   *sharedv1.Address
@@ -100,7 +103,7 @@ func TestAddAddress(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			cid := sharedv1.CID("TestGetAddress-" + name)
-			uuid, err := (&Conn{tc.mockDB(), mockUUIDGen}).
+			uuid, err := (&Conn{tc.mockDB(), mockUUIDGen, l}).
 				AddAddress(context.Background(), tc.addr, cid)
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.uuid, uuid)
@@ -110,6 +113,7 @@ func TestAddAddress(t *testing.T) {
 
 func TestUpdateAddress(t *testing.T) {
 	t.Parallel()
+	l := log.WithFields(log.Fields{"app": "address_test.go", "test": "TestUpdateAddress"})
 	tcs := map[string]struct {
 		mockDB getMockDB
 		addr   *sharedv1.Address
@@ -180,7 +184,7 @@ func TestUpdateAddress(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			cid := sharedv1.CID("TestGetAddress-" + name)
-			require.Equal(t, tc.err, (&Conn{tc.mockDB(), nil}).
+			require.Equal(t, tc.err, (&Conn{tc.mockDB(), nil, l}).
 				UpdateAddress(context.Background(), tc.addr, cid))
 		})
 	}
@@ -188,6 +192,7 @@ func TestUpdateAddress(t *testing.T) {
 
 func TestDeleteAddress(t *testing.T) {
 	t.Parallel()
+	l := log.WithFields(log.Fields{"app": "address_test.go", "test": "TestDeleteAddress"})
 	tcs := map[string]struct {
 		mockDB getMockDB
 		err    error
@@ -224,7 +229,7 @@ func TestDeleteAddress(t *testing.T) {
 			require.Equal(
 				t,
 				tc.err,
-				(&Conn{tc.mockDB(), nil}).
+				(&Conn{tc.mockDB(), nil, l}).
 					DeleteAddress(context.Background(), "", cid))
 		})
 	}

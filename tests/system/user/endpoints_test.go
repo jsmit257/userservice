@@ -10,11 +10,11 @@ import (
 
 	sharedv1 "github.com/jsmit257/userservice/shared/v1"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_UserGet(t *testing.T) {
-	t.Skip()
 	t.Parallel()
 	tcs := map[string]struct {
 		want sharedv1.User
@@ -59,7 +59,6 @@ func Test_UserGet(t *testing.T) {
 }
 
 func Test_UserPost(t *testing.T) {
-	t.Skip()
 	t.Parallel()
 	tcs := map[string]struct {
 		send     sharedv1.User
@@ -107,7 +106,6 @@ func Test_UserPost(t *testing.T) {
 }
 
 func Test_UserPatch(t *testing.T) {
-	t.Skip()
 	t.Parallel()
 	tcs := map[string]struct {
 		userID string
@@ -142,7 +140,7 @@ func Test_UserPatch(t *testing.T) {
 			resp, err := http.DefaultClient.Do(req)
 			require.Nil(t, err)
 			defer resp.Body.Close()
-			require.Equal(t, tc.sc, resp.StatusCode)
+			assert.Equal(t, tc.sc, resp.StatusCode)
 			body, err := io.ReadAll(resp.Body)
 			require.Nil(t, err)
 			require.Equal(t, tc.resp, string(body))
@@ -152,5 +150,10 @@ func Test_UserPatch(t *testing.T) {
 
 func userToReader(u *sharedv1.User) io.Reader {
 	body, _ := json.Marshal(u)
+	return bytes.NewReader(body)
+}
+
+func mustReader(i interface{}) io.Reader {
+	body, _ := json.Marshal(i)
 	return bytes.NewReader(body)
 }

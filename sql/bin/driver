@@ -3,7 +3,7 @@
 cmdline=(
   "`which mysql`"
   -u"${US_MYSQL_USER}" 
-  -p"${US_MYSQL_ROOT_PASSWORD}" 
+  -p"${US_MYSQL_PASSWORD}" 
   -P"${US_MYSQL_PORT}" 
   -h"${US_MYSQL_HOST}"
 )

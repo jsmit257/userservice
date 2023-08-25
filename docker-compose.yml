@@ -1,6 +1,11 @@
 ---
 version: "3.1"
 
+x-mysql-host: &mysql-host percona
+x-mysql-port: &mysql-port 3306
+x-mysql-pwd: &mysql-pwd root
+x-mysql-user: &mysql-user root
+
 services:
 
   mysql:
@@ -11,7 +16,7 @@ services:
     ports:
       - 6033:3306
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: *mysql-pwd
 
   schema:
     depends_on: [ mysql ]
@@ -20,10 +25,10 @@ services:
     # apply a userservice schema to the percona container
     volumes: [ ./sql:/sql ]
     environment:
-      US_MYSQL_HOST: percona
-      US_MYSQL_PORT: 3306
-      US_MYSQL_ROOT_PASSWORD: root
-      US_MYSQL_USER: root
+      US_MYSQL_HOST: *mysql-host
+      US_MYSQL_PASSWORD: *mysql-pwd
+      US_MYSQL_PORT: *mysql-port
+      US_MYSQL_USER: *mysql-user
     working_dir: /sql/bin
     command: ./driver
 
@@ -50,10 +55,10 @@ services:
     hostname: servicetester
     ports: [ 3000:3000 ]
     environment:
-      US_MYSQL_HOST: percona
-      US_MYSQL_PORT: 3306
-      US_MYSQL_ROOT_PASSWORD: root
-      US_MYSQL_USER: root
+      US_MYSQL_HOST: *mysql-host
+      US_MYSQL_PASSWORD: *mysql-pwd
+      US_MYSQL_PORT: *mysql-port
+      US_MYSQL_USER: *mysql-user
     command: /user-service
 
   foo:
@@ -71,10 +76,10 @@ services:
     image: golang:latest
     volumes: [ .:/go/src/build ]
     environment:
-      US_MYSQL_HOST: percona
-      US_MYSQL_PORT: 3306
-      US_MYSQL_ROOT_PASSWORD: root
-      US_MYSQL_USER: root
+      US_MYSQL_HOST: *mysql-host
+      US_MYSQL_PASSWORD: *mysql-pwd
+      US_MYSQL_PORT: *mysql-port
+      US_MYSQL_USER: *mysql-user
       US_SERVER_HOST: localhost
       US_SERVER_PORT: 3000
     working_dir: /go/src/build
