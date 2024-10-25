@@ -1,4 +1,4 @@
-package mysql
+package data
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 
 func TestGetContact(t *testing.T) {
 	t.Parallel()
-	l := log.WithFields(log.Fields{"app": "contact_test.go", "test": "TestGetContact"})
+	l := testLogger(t, log.Fields{"app": "contact_test.go", "test": "TestGetContact"})
 	tcs := map[string]struct {
 		mockDB  getMockDB
 		contact *sharedv1.Contact
@@ -46,16 +46,11 @@ func TestGetContact(t *testing.T) {
 				return db
 			},
 			contact: &sharedv1.Contact{
-				ID:        "1",
+				UUID:      "1",
 				FirstName: "foo",
 				LastName:  "bar",
-				User: &sharedv1.User{
-					ID:    "1",
-					Name:  "foo",
-					MTime: userMTime,
-				},
-				BillTo: &sharedv1.Address{ID: "1"},
-				ShipTo: &sharedv1.Address{ID: "2"},
+				BillTo:    &sharedv1.Address{UUID: "1"},
+				ShipTo:    &sharedv1.Address{UUID: "2"},
 			},
 		},
 		"no_billto": {
@@ -77,15 +72,10 @@ func TestGetContact(t *testing.T) {
 				return db
 			},
 			contact: &sharedv1.Contact{
-				ID:        "1",
+				UUID:      "1",
 				FirstName: "foo",
 				LastName:  "bar",
-				User: &sharedv1.User{
-					ID:    "1",
-					Name:  "foo",
-					MTime: userMTime,
-				},
-				ShipTo: &sharedv1.Address{ID: "2"},
+				ShipTo:    &sharedv1.Address{UUID: "2"},
 			},
 		},
 		"no_shipto": {
@@ -102,14 +92,9 @@ func TestGetContact(t *testing.T) {
 				return db
 			},
 			contact: &sharedv1.Contact{
-				ID:        "1",
+				UUID:      "1",
 				FirstName: "foo",
 				LastName:  "bar",
-				User: &sharedv1.User{
-					ID:    "1",
-					Name:  "foo",
-					MTime: userMTime,
-				},
 			},
 		},
 		"selectRow_fails": {
@@ -188,11 +173,11 @@ func TestGetContact(t *testing.T) {
 
 func TestAddContact(t *testing.T) {
 	t.Parallel()
-	l := log.WithFields(log.Fields{"app": "contact_test.go", "test": "TestAddContact"})
+	l := testLogger(t, log.Fields{"app": "contact_test.go", "test": "TestAddContact"})
 	tcs := map[string]struct {
 		mockDB  getMockDB
 		contact *sharedv1.Contact
-		result  string
+		result  sharedv1.UUID
 		err     error
 	}{
 		"happy_path": {
@@ -201,12 +186,8 @@ func TestAddContact(t *testing.T) {
 				mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 1))
 				return db
 			},
-			contact: &sharedv1.Contact{User: &sharedv1.User{
-				ID:    "1",
-				Name:  "old username",
-				MTime: userMTime,
-			}},
-			result: mockUUIDGen().String(),
+			contact: &sharedv1.Contact{},
+			result:  mockUUIDGen(),
 		},
 		"nil_user": {
 			mockDB: func() *sql.DB {
@@ -221,7 +202,7 @@ func TestAddContact(t *testing.T) {
 				db, _, _ := sqlmock.New()
 				return db
 			},
-			contact: &sharedv1.Contact{User: &sharedv1.User{}},
+			contact: &sharedv1.Contact{},
 			err:     fmt.Errorf("contact requires a valid user"),
 		},
 		"exec_fails": {
@@ -230,7 +211,7 @@ func TestAddContact(t *testing.T) {
 				mock.ExpectExec(".*").WillReturnError(fmt.Errorf("some error"))
 				return db
 			},
-			contact: &sharedv1.Contact{User: &sharedv1.User{ID: "1", Name: "old username", MTime: userMTime}},
+			contact: &sharedv1.Contact{},
 			err:     fmt.Errorf("some error"),
 		},
 		"no_update": {
@@ -239,7 +220,7 @@ func TestAddContact(t *testing.T) {
 				mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
 				return db
 			},
-			contact: &sharedv1.Contact{User: &sharedv1.User{ID: "1", Name: "old username", MTime: userMTime}},
+			contact: &sharedv1.Contact{},
 			err:     fmt.Errorf("contact was not inserted: '%s'", mockUUIDGen()),
 		},
 	}
@@ -247,7 +228,7 @@ func TestAddContact(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			result, err := (&Conn{tc.mockDB(), mockUUIDGen, l}).AddContact(context.Background(), tc.contact, sharedv1.CID("TestAddContact-"+name))
+			result, err := (&Conn{tc.mockDB(), mockUUIDGen, l}).AddContact(context.Background(), "", tc.contact, sharedv1.CID("TestAddContact-"+name))
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.result, result)
 		})
@@ -256,7 +237,7 @@ func TestAddContact(t *testing.T) {
 
 func TestUpdateContact(t *testing.T) {
 	t.Parallel()
-	l := log.WithFields(log.Fields{"app": "contact_test.go", "test": "TestUpdateContact"})
+	l := testLogger(t, log.Fields{"app": "contact_test.go", "test": "TestUpdateContact"})
 	tcs := map[string]struct {
 		mockDB  getMockDB
 		contact *sharedv1.Contact
@@ -285,7 +266,7 @@ func TestUpdateContact(t *testing.T) {
 				mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
 				return db
 			},
-			contact: &sharedv1.Contact{ID: "update fails"},
+			contact: &sharedv1.Contact{UUID: "update fails"},
 			err:     fmt.Errorf("contact was not updated: 'update fails'"),
 		},
 	}
@@ -299,7 +280,7 @@ func TestUpdateContact(t *testing.T) {
 }
 func TestDeleteContact(t *testing.T) {
 	t.Parallel()
-	l := log.WithFields(log.Fields{"app": "contact_test.go", "test": "TestDeleteContact"})
+	l := testLogger(t, log.Fields{"app": "contact_test.go", "test": "TestDeleteContact"})
 	tcs := map[string]struct {
 		mockDB getMockDB
 		err    error

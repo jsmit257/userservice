@@ -5,29 +5,33 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/jsmit257/userservice/internal/data"
-	"github.com/jsmit257/userservice/internal/metrics"
-	sharedv1 "github.com/jsmit257/userservice/shared/v1"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/prometheus/client_golang/prometheus"
 
 	log "github.com/sirupsen/logrus"
+
+	"github.com/jsmit257/userservice/internal/metrics"
+	shared "github.com/jsmit257/userservice/shared/v1"
 )
 
 type UserService struct {
-	data.Address
-	data.Contact
-	data.User
+	shared.Addresser
+	shared.Contacter
+	shared.Userer
 }
 
 var mtrcs = metrics.ServiceMetrics.MustCurryWith(prometheus.Labels{})
 
+func middleware(http.Handler) http.Handler {
+	return nil
+}
+
 func NewInstance(us *UserService, hostAddr string, hostPort uint16, mtrcs http.HandlerFunc, logger *log.Entry) *http.Server {
 	r := chi.NewRouter()
 
-	// r.Use(middleware.Logger(logger))
+	// r.Use(middleware)
 
 	r.Get("/user/{user_id}", us.GetUser)
 	r.Patch("/user/{user_id}", us.PatchUser)
@@ -50,6 +54,6 @@ func hc(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte("OK"))
 }
 
-func cid() sharedv1.CID {
-	return sharedv1.CID(uuid.NewString())
+func cid() shared.CID {
+	return shared.CID(uuid.NewString())
 }

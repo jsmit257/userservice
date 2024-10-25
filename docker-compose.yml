@@ -1,5 +1,4 @@
 ---
-version: "3.1"
 
 x-mysql-host: &mysql-host percona
 x-mysql-port: &mysql-port 3306
@@ -11,7 +10,7 @@ services:
   mysql:
     image: percona:ps-8.0.29-21
     restart: always
-    hostname: percona
+    hostname: *mysql-host
     volumes: [ .:/go/src/build ]
     ports:
       - 6033:3306
@@ -29,7 +28,7 @@ services:
       US_MYSQL_PASSWORD: *mysql-pwd
       US_MYSQL_PORT: *mysql-port
       US_MYSQL_USER: *mysql-user
-    working_dir: /sql/bin
+    working_dir: /bin
     command: ./driver
 
   build-serve-mysql:

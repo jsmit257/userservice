@@ -11,7 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/jsmit257/userservice/internal/data/mysql"
+	"github.com/jsmit257/userservice/internal/data"
 	sharedv1 "github.com/jsmit257/userservice/shared/v1"
 )
 
@@ -23,9 +23,9 @@ type User interface {
 	// DeleteUser(w http.ResponseWriter, r *http.Request)
 }
 
-func (us *UserService) GetUser(w http.ResponseWriter, r *http.Request) {
+func (us UserService) GetUser(w http.ResponseWriter, r *http.Request) {
 	cid := cid()
-	user, err := us.User.GetUser(r.Context(), chi.URLParam(r, "user_id"), cid)
+	user, err := us.Userer.GetUser(r.Context(), sharedv1.UUID(chi.URLParam(r, "user_id")), cid)
 	if err != nil {
 		// TODO: differentiate between a missing userID (NotFound) and an http/service error
 		//       (InternalServerError/BadRequest) and log some info
@@ -41,7 +41,7 @@ func (us *UserService) GetUser(w http.ResponseWriter, r *http.Request) {
 func (us *UserService) PatchUser(w http.ResponseWriter, r *http.Request) {
 	cid := cid()
 	var user sharedv1.User
-	userID := chi.URLParam(r, "user_id")
+	userID := sharedv1.UUID(chi.URLParam(r, "user_id"))
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -53,11 +53,11 @@ func (us *UserService) PatchUser(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte(fmt.Sprintf("couldn't unmarshal: '%s'", body)))
 		return
-	} else if userID != user.ID {
+	} else if userID != user.UUID {
 		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(fmt.Sprintf("user '%s' can't change attributes for user '%s'", userID, user.ID)))
+		_, _ = w.Write([]byte(fmt.Sprintf("user '%s' can't change attributes for user '%s'", userID, user.UUID)))
 		return
-	} else if err = us.User.UpdateUser(r.Context(), &user, cid); err != nil {
+	} else if err = us.Userer.UpdateUser(r.Context(), &user, cid); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte(err.Error()))
 		return
@@ -71,7 +71,6 @@ func (us *UserService) PostUser(w http.ResponseWriter, r *http.Request) {
 	m := mtrcs.MustCurryWith(prometheus.Labels{"function": "PostUser", "method": http.MethodPost})
 	var user sharedv1.User
 	body, err := io.ReadAll(r.Body)
-	defer r.Body.Close()
 	if err != nil {
 		m.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), err.Error()).Inc()
 		w.WriteHeader(http.StatusInternalServerError)
@@ -84,13 +83,13 @@ func (us *UserService) PostUser(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	id, err := us.User.AddUser(r.Context(), &user, cid)
+	id, err := us.Userer.AddUser(r.Context(), &user, cid)
 	switch {
-	case errors.Is(err, mysql.UserExistsError):
+	case errors.Is(err, data.UserExistsError):
 		m.WithLabelValues(strconv.Itoa(http.StatusBadRequest), fmt.Sprintf("%q", err)).Inc()
 		w.WriteHeader(http.StatusBadRequest)
 		return
-	case errors.Is(err, mysql.UserNotAddedError):
+	case errors.Is(err, data.UserNotAddedError):
 		m.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), fmt.Sprintf("%q", err)).Inc()
 		w.WriteHeader(http.StatusInternalServerError)
 		return

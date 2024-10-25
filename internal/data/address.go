@@ -1,4 +1,4 @@
-package mysql
+package data
 
 import (
 	"context"
@@ -15,19 +15,23 @@ const (
 	updateAddress = "update addresses set street1 = ?, street2 = ?, city = ?, state = ?, country = ?, zip = ?, mtime = ? where id = ?"
 )
 
-func (db *Conn) GetAddress(ctx context.Context, id string, cid sharedv1.CID) (*sharedv1.Address, error) {
+func (db *Conn) GetAddress(ctx context.Context, id sharedv1.UUID, cid sharedv1.CID) (*sharedv1.Address, error) {
 	result := &sharedv1.Address{}
 
 	return result, db.
 		QueryRowContext(ctx, selectAddress, id).
-		Scan(&result.ID)
+		Scan(&result.UUID)
 }
 
-func (db *Conn) AddAddress(ctx context.Context, addr *sharedv1.Address, cid sharedv1.CID) (string, error) {
+func (db *Conn) AddAddress(ctx context.Context, addr *sharedv1.Address, cid sharedv1.CID) (sharedv1.UUID, error) {
 	now := time.Now().UTC()
-	addr.ID, addr.MTime, addr.CTime = db.generateUUID().String(), now, now
+	addr.UUID, addr.MTime, addr.CTime =
+		db.generateUUID(),
+		now,
+		now
+
 	result, err := db.ExecContext(ctx, insertAddress,
-		addr.ID,
+		addr.UUID,
 		addr.Street1,
 		addr.Street2,
 		addr.City,
@@ -37,22 +41,17 @@ func (db *Conn) AddAddress(ctx context.Context, addr *sharedv1.Address, cid shar
 		addr.MTime,
 		addr.CTime)
 	if err != nil {
-		// FIXME: choose what to do based on the tupe of error
-		duplicatePrimaryKeyErr := false
-		if duplicatePrimaryKeyErr {
-			return db.AddAddress(ctx, addr, cid) // FIXME: infinite loop?
-		}
 		return "", err
 	} else if rows, err := result.RowsAffected(); err != nil {
 		return "", err
 	} else if rows != 1 {
 		return "", fmt.Errorf("address was not added")
 	}
-	return addr.ID, nil
+	return addr.UUID, nil
 }
 
 func (db *Conn) UpdateAddress(ctx context.Context, addr *sharedv1.Address, cid sharedv1.CID) error {
-	oldaddr, err := db.GetAddress(ctx, addr.ID, cid)
+	oldaddr, err := db.GetAddress(ctx, addr.UUID, cid)
 	if err != nil {
 		return err
 	}
@@ -74,18 +73,18 @@ func (db *Conn) UpdateAddress(ctx context.Context, addr *sharedv1.Address, cid s
 		addr.Country,
 		addr.Zip,
 		now,
-		addr.ID)
+		addr.UUID)
 	if err != nil {
 		return err
 	} else if rows, err := result.RowsAffected(); err != nil {
 		return err
 	} else if rows != 1 {
-		return fmt.Errorf("address was not updated: '%s'", addr.ID)
+		return fmt.Errorf("address was not updated: '%s'", addr.UUID)
 	}
 	return nil
 }
 
-func (db *Conn) DeleteAddress(ctx context.Context, id string, cid sharedv1.CID) error {
+func (db *Conn) DeleteAddress(ctx context.Context, id sharedv1.UUID, cid sharedv1.CID) error {
 	result, err := db.ExecContext(ctx, deleteAddress, id)
 	if err != nil {
 		return err

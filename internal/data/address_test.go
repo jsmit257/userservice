@@ -1,4 +1,4 @@
-package mysql
+package data
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	sharedv1 "github.com/jsmit257/userservice/shared/v1"
+	"github.com/jsmit257/userservice/shared/v1"
 	log "github.com/sirupsen/logrus"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
@@ -16,10 +16,10 @@ import (
 
 func TestGetAddress(t *testing.T) {
 	t.Parallel()
-	l := log.WithFields(log.Fields{"app": "address_test.go", "test": "TestGetAddress"})
+	l := testLogger(t, log.Fields{"app": "address_test.go", "test": "TestGetAddress"})
 	tcs := map[string]struct {
 		mockDB getMockDB
-		addr   *sharedv1.Address
+		addr   *shared.Address
 		err    error
 	}{
 		"happy_path": {
@@ -32,9 +32,7 @@ func TestGetAddress(t *testing.T) {
 						AddRow("1"))
 				return db
 			},
-			addr: &sharedv1.Address{
-				ID: "1",
-			},
+			addr: &shared.Address{UUID: "1"},
 		},
 		"selectRow_fails": {
 			mockDB: func() *sql.DB {
@@ -44,7 +42,7 @@ func TestGetAddress(t *testing.T) {
 					WillReturnError(fmt.Errorf("some error"))
 				return db
 			},
-			addr: &sharedv1.Address{},
+			addr: &shared.Address{},
 			err:  fmt.Errorf("some error"),
 		},
 	}
@@ -52,7 +50,7 @@ func TestGetAddress(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			cid := sharedv1.CID("TestGetAddress-" + name)
+			cid := shared.CID("TestGetAddress-" + name)
 			addr, err := (&Conn{tc.mockDB(), nil, l}).
 				GetAddress(context.Background(), "1", cid)
 			require.Equal(t, tc.err, err)
@@ -63,11 +61,11 @@ func TestGetAddress(t *testing.T) {
 
 func TestAddAddress(t *testing.T) {
 	t.Parallel()
-	l := log.WithFields(log.Fields{"app": "address_test.go", "test": "TestAddAddress"})
+	l := testLogger(t, log.Fields{"app": "address_test.go", "test": "TestAddAddress"})
 	tcs := map[string]struct {
 		mockDB getMockDB
-		addr   *sharedv1.Address
-		uuid   string
+		addr   *shared.Address
+		uuid   shared.UUID
 		err    error
 	}{
 		"happy_path": {
@@ -76,8 +74,8 @@ func TestAddAddress(t *testing.T) {
 				mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 1))
 				return db
 			},
-			addr: &sharedv1.Address{},
-			uuid: mockUUIDGen().String(),
+			addr: &shared.Address{},
+			uuid: mockUUIDGen(),
 		},
 		"exec_fails": {
 			mockDB: func() *sql.DB {
@@ -85,7 +83,7 @@ func TestAddAddress(t *testing.T) {
 				mock.ExpectExec(".*").WillReturnError(fmt.Errorf("some error"))
 				return db
 			},
-			addr: &sharedv1.Address{},
+			addr: &shared.Address{},
 			err:  fmt.Errorf("some error"),
 		},
 		"no_insert": { // how would this happen w/o an error?
@@ -94,7 +92,7 @@ func TestAddAddress(t *testing.T) {
 				mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
 				return db
 			},
-			addr: &sharedv1.Address{},
+			addr: &shared.Address{},
 			err:  fmt.Errorf("address was not added"),
 		},
 	}
@@ -102,7 +100,7 @@ func TestAddAddress(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			cid := sharedv1.CID("TestGetAddress-" + name)
+			cid := shared.CID("TestGetAddress-" + name)
 			uuid, err := (&Conn{tc.mockDB(), mockUUIDGen, l}).
 				AddAddress(context.Background(), tc.addr, cid)
 			require.Equal(t, tc.err, err)
@@ -113,10 +111,10 @@ func TestAddAddress(t *testing.T) {
 
 func TestUpdateAddress(t *testing.T) {
 	t.Parallel()
-	l := log.WithFields(log.Fields{"app": "address_test.go", "test": "TestUpdateAddress"})
+	l := testLogger(t, log.Fields{"app": "address_test.go", "test": "TestUpdateAddress"})
 	tcs := map[string]struct {
 		mockDB getMockDB
-		addr   *sharedv1.Address
+		addr   *shared.Address
 		err    error
 	}{
 		"happy_path": {
@@ -129,7 +127,7 @@ func TestUpdateAddress(t *testing.T) {
 				mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 1))
 				return db
 			},
-			addr: &sharedv1.Address{},
+			addr: &shared.Address{},
 		},
 		"get_address_fails": {
 			mockDB: func() *sql.DB {
@@ -138,7 +136,7 @@ func TestUpdateAddress(t *testing.T) {
 					WillReturnError(fmt.Errorf("some error"))
 				return db
 			},
-			addr: &sharedv1.Address{},
+			addr: &shared.Address{},
 			err:  fmt.Errorf("some error"),
 		},
 		"exec_fails": {
@@ -151,7 +149,7 @@ func TestUpdateAddress(t *testing.T) {
 				mock.ExpectExec(".*").WillReturnError(fmt.Errorf("some error"))
 				return db
 			},
-			addr: &sharedv1.Address{},
+			addr: &shared.Address{},
 			err:  fmt.Errorf("some error"),
 		},
 		"nothing_to_update": {
@@ -163,7 +161,7 @@ func TestUpdateAddress(t *testing.T) {
 						AddRow("1"))
 				return db
 			},
-			addr: &sharedv1.Address{ID: "1"},
+			addr: &shared.Address{UUID: "1"},
 		},
 		"no_update": {
 			mockDB: func() *sql.DB {
@@ -175,7 +173,7 @@ func TestUpdateAddress(t *testing.T) {
 				mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
 				return db
 			},
-			addr: &sharedv1.Address{ID: "not added"},
+			addr: &shared.Address{UUID: "not added"},
 			err:  fmt.Errorf("address was not updated: '%s'", "not added"),
 		},
 	}
@@ -183,7 +181,7 @@ func TestUpdateAddress(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			cid := sharedv1.CID("TestGetAddress-" + name)
+			cid := shared.CID("TestGetAddress-" + name)
 			require.Equal(t, tc.err, (&Conn{tc.mockDB(), nil, l}).
 				UpdateAddress(context.Background(), tc.addr, cid))
 		})
@@ -192,7 +190,7 @@ func TestUpdateAddress(t *testing.T) {
 
 func TestDeleteAddress(t *testing.T) {
 	t.Parallel()
-	l := log.WithFields(log.Fields{"app": "address_test.go", "test": "TestDeleteAddress"})
+	l := testLogger(t, log.Fields{"app": "address_test.go", "test": "TestDeleteAddress"})
 	tcs := map[string]struct {
 		mockDB getMockDB
 		err    error
@@ -225,7 +223,7 @@ func TestDeleteAddress(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			cid := sharedv1.CID("TestDeleteAddress-" + name)
+			cid := shared.CID("TestDeleteAddress-" + name)
 			require.Equal(
 				t,
 				tc.err,

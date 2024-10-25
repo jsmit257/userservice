@@ -1,4 +1,4 @@
-package mysql
+package data
 
 import (
 	"context"
@@ -33,7 +33,8 @@ var (
 func (db *Conn) BasicAuth(ctx context.Context, login *sharedv1.BasicAuth, cid sharedv1.CID) (*sharedv1.User, error) {
 	m := mtrcs.MustCurryWith(prometheus.Labels{"method": "BasicAuth"})
 
-	var id, pass, salt string
+	var id sharedv1.UUID
+	var pass, salt string
 	var loginSuccess, loginFailure *time.Time
 	var failureCount uint8
 
@@ -45,19 +46,19 @@ func (db *Conn) BasicAuth(ctx context.Context, login *sharedv1.BasicAuth, cid sh
 		&loginFailure,
 		&failureCount)
 	if err != nil {
-		return nil, trackError(m, err, err.Error()) // FIXME: fmt.Errorf("internal server error")
+		return nil, trackError(cid, db.logger, m, err, err.Error()) // FIXME: fmt.Errorf("internal server error")
 	} else if id == "" {
-		return nil, trackError(m, fmt.Errorf("bad username or password"), "bad_username")
+		return nil, trackError(cid, db.logger, m, fmt.Errorf("bad username or password"), "bad_username")
 	} else if failureCount > maxFailure {
-		return nil, trackError(m, fmt.Errorf("too many failed login attempts"), "password_lockout")
+		return nil, trackError(cid, db.logger, m, fmt.Errorf("too many failed login attempts"), "password_lockout")
 	}
 
 	now := time.Now().UTC()
 	if hash(login.Pass, salt) != pass {
 		if err := db.updateBasicAuth(ctx, id, loginSuccess, &now, failureCount+1); err != nil {
-			return nil, trackError(m, err, err.Error()) // fmt.Errorf("internal server error"), err.Error())
+			return nil, trackError(cid, db.logger, m, err, err.Error()) // fmt.Errorf("internal server error"), err.Error())
 		}
-		return nil, trackError(m, fmt.Errorf("bad username or password"), "bad_password")
+		return nil, trackError(cid, db.logger, m, fmt.Errorf("bad username or password"), "bad_password")
 	}
 
 	loginFailure = nil
@@ -79,18 +80,26 @@ func (db *Conn) BasicAuth(ctx context.Context, login *sharedv1.BasicAuth, cid sh
 	return user, err
 }
 
-func (db *Conn) GetUser(ctx context.Context, id string, cid sharedv1.CID) (*sharedv1.User, error) {
-	result := &sharedv1.User{ID: id}
+func (db *Conn) GetUser(ctx context.Context, id sharedv1.UUID, cid sharedv1.CID) (*sharedv1.User, error) {
+	result := &sharedv1.User{UUID: id}
 
 	return result, db.
 		QueryRowContext(ctx, selectUser, id).
-		Scan(&result.Name, &result.MTime, &result.DTime, &result.LoginSuccess)
+		Scan(
+			&result.UUID,
+			&result.Name,
+			&result.MTime,
+			&result.DTime,
+			&result.LoginSuccess)
 }
 
-func (db *Conn) AddUser(ctx context.Context, u *sharedv1.User, cid sharedv1.CID) (string, error) {
-	salt, now := generateSalt(), time.Now().UTC()
+func (db *Conn) AddUser(ctx context.Context, u *sharedv1.User, cid sharedv1.CID) (sharedv1.UUID, error) {
+	salt := generateSalt()
+	now := time.Now().UTC()
+	u.UUID = db.generateUUID()
+
 	result, err := db.ExecContext(ctx, insertUser,
-		db.generateUUID(),
+		u.UUID,
 		u.Name,
 		hash("password", salt),
 		salt,
@@ -100,45 +109,37 @@ func (db *Conn) AddUser(ctx context.Context, u *sharedv1.User, cid sharedv1.CID)
 		switch v := err.(type) {
 		case *mysql.MySQLError:
 			// FIXME: is there no better way to determine key violation vs. some other error?
-			if strings.Contains(v.Error(), "users.id") {
+			if strings.Contains(v.Error(), "users.uuid") {
 				return db.AddUser(ctx, u, cid) // FIXME: handle infinite recursion (unlikely as it is)
 			} else if strings.Contains(v.Error(), "users.name") {
-				return u.Name, UserExistsError
+				return u.UUID, UserExistsError
 			}
 		default:
-			return u.Name, err // FIXME: should log the specifics and return something generic
+			return u.UUID, err // FIXME: should log the specifics and return something generic
 		}
 	} else if rows, err := result.RowsAffected(); err != nil {
-		return u.Name, err // FIXME: should log the specifics and return something generic
+		return u.UUID, err // FIXME: should log the specifics and return something generic
 	} else if rows != 1 {
-		return u.Name, UserNotAddedError
+		return u.UUID, UserNotAddedError
 	}
-	return u.Name, nil
+	return u.UUID, nil
 }
 
 func (db *Conn) UpdateUser(ctx context.Context, u *sharedv1.User, cid sharedv1.CID) error {
-	curr, err := db.GetUser(ctx, u.ID, cid)
-	if err != nil {
-		return fmt.Errorf("failed to fetch user: '%s' %w", u.ID, err)
-	}
-	u.MTime = curr.MTime
-	u.CTime = curr.CTime
-	if *u == *curr {
-		return nil
-	}
 	u.MTime = time.Now().UTC()
-	if result, err := db.ExecContext(ctx, updateUser, u.Name, u.MTime, u.ID); err != nil {
-		return fmt.Errorf("couldn't update user: '%s', %w", u.ID, err)
+
+	if result, err := db.ExecContext(ctx, updateUser, u.Name, u.MTime, u.UUID); err != nil {
+		return fmt.Errorf("couldn't update user: '%s', %w", u.UUID, err)
 	} else if rows, err := result.RowsAffected(); err != nil {
 		return err
 	} else if rows != 1 {
-		return fmt.Errorf("user was not updated: '%s'", u.ID)
+		return fmt.Errorf("user was not updated: '%s'", u.UUID)
 	}
 
 	return nil
 }
 
-func (db *Conn) DeleteUser(ctx context.Context, id string, cid sharedv1.CID) error {
+func (db *Conn) DeleteUser(ctx context.Context, id sharedv1.UUID, cid sharedv1.CID) error {
 	result, err := db.ExecContext(ctx, deleteUser, id)
 	if err != nil {
 		return err
@@ -150,15 +151,20 @@ func (db *Conn) DeleteUser(ctx context.Context, id string, cid sharedv1.CID) err
 	return nil
 }
 
-func (db *Conn) CreateContact(ctx context.Context, id string, c *sharedv1.Contact, cid sharedv1.CID) (string, error) {
+func (db *Conn) CreateContact(ctx context.Context, u *sharedv1.User, c *sharedv1.Contact, cid sharedv1.CID) (*sharedv1.Contact, error) {
 	var err error
-	if c.User, err = db.GetUser(ctx, id, cid); err != nil {
-		return "", err
+
+	newID, err := db.AddContact(ctx, u.UUID, c, cid)
+	if err != nil {
+		return nil, err
 	}
-	return db.AddContact(ctx, c, cid)
+	c.UUID = newID
+	u.Contact = c
+
+	return u.Contact, err
 }
 
-func (db *Conn) updateBasicAuth(ctx context.Context, id string, loginSuccess, loginFailure *time.Time, failureCount uint8) error {
+func (db *Conn) updateBasicAuth(ctx context.Context, id sharedv1.UUID, loginSuccess, loginFailure *time.Time, failureCount uint8) error {
 	var err error
 	var result sql.Result
 	var updateCount int64
@@ -179,10 +185,4 @@ func hash(pass, salt string) string {
 
 func generateSalt() string {
 	return "salt"
-}
-
-func trackError(m *prometheus.CounterVec, err error, lvs ...string) error {
-	m.WithLabelValues(lvs...).Inc()
-	// choose a logger and use it
-	return err
 }

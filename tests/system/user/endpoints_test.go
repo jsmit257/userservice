@@ -153,7 +153,7 @@ func userToReader(u *sharedv1.User) io.Reader {
 	return bytes.NewReader(body)
 }
 
-func mustReader(i interface{}) io.Reader {
-	body, _ := json.Marshal(i)
+func mustReader(a any) io.Reader {
+	body, _ := json.Marshal(a)
 	return bytes.NewReader(body)
 }

@@ -28,11 +28,6 @@ system-test: docker-down package-serve-mysql
 
 vet:
 
-fmt:
-	go fmt ./...
-
-docker:
-
 .PHONY: docker-down
 docker-down:
 	docker-compose down

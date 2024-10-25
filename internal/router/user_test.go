@@ -10,8 +10,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/jsmit257/userservice/internal/data/mysql"
-	sharedv1 "github.com/jsmit257/userservice/shared/v1"
+	"github.com/jsmit257/userservice/internal/data"
+	"github.com/jsmit257/userservice/shared/v1"
 
 	"github.com/go-chi/chi/v5"
 
@@ -19,42 +19,23 @@ import (
 )
 
 type mockUser struct {
-	authenticateResp  *sharedv1.User
+	authenticateResp  *shared.User
 	authenticateErr   error
-	getUserResp       *sharedv1.User
+	getUserResp       *shared.User
 	getUserErr        error
-	postUserResp      *sharedv1.User
+	postUserResp      *shared.User
 	postUserErr       error
 	patchUserErr      error
-	createContactResp string
+	createContactResp *shared.Contact
 	createContactErr  error
-}
-
-func (mu *mockUser) BasicAuth(ctx context.Context, login *sharedv1.BasicAuth, cid sharedv1.CID) (*sharedv1.User, error) {
-	return mu.authenticateResp, mu.authenticateErr
-}
-func (mu *mockUser) GetUser(ctx context.Context, id string, cid sharedv1.CID) (*sharedv1.User, error) {
-	return mu.getUserResp, mu.getUserErr
-}
-func (mu *mockUser) AddUser(ctx context.Context, u *sharedv1.User, cid sharedv1.CID) (string, error) {
-	return mu.postUserResp.ID, mu.postUserErr
-}
-func (mu *mockUser) UpdateUser(ctx context.Context, u *sharedv1.User, cid sharedv1.CID) error {
-	return mu.patchUserErr
-}
-func (mu *mockUser) CreateContact(ctx context.Context, id string, c *sharedv1.Contact, cid sharedv1.CID) (string, error) {
-	return mu.createContactResp, mu.createContactErr
-}
-func (mu *mockUser) DeleteUser(ctx context.Context, id string, cid sharedv1.CID) error { // unused
-	return nil
 }
 
 func Test_userService_PatchUser(t *testing.T) {
 	t.Parallel()
 	tcs := map[string]struct {
 		u       *mockUser
-		r       *sharedv1.User
-		user    *sharedv1.User
+		r       *shared.User
+		user    *shared.User
 		userIDs []string
 		sc      int
 	}{
@@ -63,7 +44,7 @@ func Test_userService_PatchUser(t *testing.T) {
 				getUserErr: fmt.Errorf("some error"),
 			},
 			userIDs: []string{"1"},
-			r:       &sharedv1.User{ID: "1"},
+			r:       &shared.User{UUID: "1"},
 			sc:      http.StatusNoContent,
 		},
 		"unmarshal_fails": {
@@ -71,7 +52,7 @@ func Test_userService_PatchUser(t *testing.T) {
 				getUserErr: fmt.Errorf("some error"),
 			},
 			userIDs: []string{"1"},
-			r:       &sharedv1.User{ID: "1"},
+			r:       &shared.User{UUID: "1"},
 			sc:      http.StatusInternalServerError,
 		},
 		"bad_userid": {
@@ -79,7 +60,7 @@ func Test_userService_PatchUser(t *testing.T) {
 				getUserErr: fmt.Errorf("some error"),
 			},
 			userIDs: []string{"1"},
-			r:       &sharedv1.User{ID: "2"},
+			r:       &shared.User{UUID: "2"},
 			sc:      http.StatusBadRequest,
 		},
 		"update_fails": {
@@ -87,7 +68,7 @@ func Test_userService_PatchUser(t *testing.T) {
 				patchUserErr: fmt.Errorf("some error"),
 			},
 			userIDs: []string{"1"},
-			r:       &sharedv1.User{ID: "1"},
+			r:       &shared.User{UUID: "1"},
 			sc:      http.StatusInternalServerError,
 		},
 	}
@@ -96,7 +77,7 @@ func Test_userService_PatchUser(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			us := &UserService{
-				User: tc.u,
+				Userer: tc.u,
 			}
 			w := httptest.NewRecorder()
 			rctx := chi.NewRouteContext()
@@ -130,13 +111,11 @@ func Test_userService_GetUser(t *testing.T) {
 	}{
 		"happy_path": {
 			u: &mockUser{
-				getUserResp: &sharedv1.User{ID: "1"},
+				getUserResp: &shared.User{UUID: "1"},
 			},
 			userIDs: []string{"1"},
 			response: func() string {
-				result, _ := json.Marshal(&sharedv1.User{
-					ID: "1",
-				})
+				result, _ := json.Marshal(shared.User{UUID: "1"})
 				return string(result)
 			}(),
 			sc: http.StatusOK,
@@ -160,7 +139,7 @@ func Test_userService_GetUser(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			us := &UserService{User: tc.u}
+			us := &UserService{Userer: tc.u}
 			w := httptest.NewRecorder()
 			rctx := chi.NewRouteContext()
 			rctx.URLParams = chi.RouteParams{Keys: []string{"user_id"}, Values: tc.userIDs}
@@ -187,52 +166,52 @@ func Test_userService_PostUser(t *testing.T) {
 	t.Parallel()
 	tcs := map[string]struct {
 		u        *mockUser
-		r        *sharedv1.User
+		r        *shared.User
 		sc       int
 		response string
 	}{
 		"happy_path": {
 			u: &mockUser{
-				postUserResp: &sharedv1.User{ID: "1"},
+				postUserResp: &shared.User{UUID: "1"},
 			},
-			r:        &sharedv1.User{ID: "1"},
+			r:        &shared.User{UUID: "1"},
 			sc:       http.StatusMovedPermanently,
 			response: "1",
 		},
 		"unmarshal_fails": {
 			u:  &mockUser{},
-			r:  &sharedv1.User{},
+			r:  &shared.User{},
 			sc: http.StatusBadRequest,
 		},
 		"adduser_fails": {
 			u: &mockUser{
-				postUserResp: &sharedv1.User{},
+				postUserResp: &shared.User{},
 				postUserErr:  fmt.Errorf("some error"),
 			},
-			r:  &sharedv1.User{},
+			r:  &shared.User{},
 			sc: http.StatusInternalServerError,
 		},
 		"user_exists": {
 			u: &mockUser{
-				postUserResp: &sharedv1.User{},
-				postUserErr:  mysql.UserExistsError,
+				postUserResp: &shared.User{},
+				postUserErr:  data.UserExistsError,
 			},
-			r:  &sharedv1.User{ID: "1"},
+			r:  &shared.User{UUID: "1"},
 			sc: http.StatusBadRequest,
 		},
 		"user_not_added": {
 			u: &mockUser{
-				postUserResp: &sharedv1.User{},
-				postUserErr:  mysql.UserNotAddedError,
+				postUserResp: &shared.User{},
+				postUserErr:  data.UserNotAddedError,
 			},
-			r:  &sharedv1.User{ID: "1"},
+			r:  &shared.User{UUID: "1"},
 			sc: http.StatusInternalServerError,
 		},
 		"user_not_found": {
 			u: &mockUser{
-				postUserResp: &sharedv1.User{},
+				postUserResp: &shared.User{},
 			},
-			r:  &sharedv1.User{},
+			r:  &shared.User{},
 			sc: http.StatusInternalServerError,
 		},
 	}
@@ -241,7 +220,7 @@ func Test_userService_PostUser(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			us := &UserService{
-				User: tc.u,
+				Userer: tc.u,
 			}
 			w := httptest.NewRecorder()
 			body := userToBody(tc.r)
@@ -265,7 +244,26 @@ func Test_userService_PostUser(t *testing.T) {
 	}
 }
 
-func userToBody(u *sharedv1.User) string {
+func userToBody(u *shared.User) string {
 	result, _ := json.Marshal(u)
 	return string(result)
+}
+
+func (mu *mockUser) BasicAuth(ctx context.Context, login *shared.BasicAuth, cid shared.CID) (*shared.User, error) {
+	return mu.authenticateResp, mu.authenticateErr
+}
+func (mu *mockUser) GetUser(ctx context.Context, id shared.UUID, cid shared.CID) (*shared.User, error) {
+	return mu.getUserResp, mu.getUserErr
+}
+func (mu *mockUser) AddUser(ctx context.Context, u *shared.User, cid shared.CID) (shared.UUID, error) {
+	return mu.postUserResp.UUID, mu.postUserErr
+}
+func (mu *mockUser) UpdateUser(ctx context.Context, u *shared.User, cid shared.CID) error {
+	return mu.patchUserErr
+}
+func (mu *mockUser) CreateContact(ctx context.Context, u *shared.User, c *shared.Contact, cid shared.CID) (*shared.Contact, error) {
+	return mu.createContactResp, mu.createContactErr
+}
+func (mu *mockUser) DeleteUser(ctx context.Context, id shared.UUID, cid shared.CID) error { // unused
+	return nil
 }

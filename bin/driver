@@ -1,12 +1,18 @@
 #!/bin/sh
 
+if -z "$US_DB_VENDOR"; then
+  echo "param 'US_DB_VENDOR' must be specified (e.g. mysql, postgres, ...)"
+  exit 1
+fi
+
 cmdline=(
   "`which mysql`"
-  -u"${US_MYSQL_USER}" 
-  -p"${US_MYSQL_PASSWORD}" 
-  -P"${US_MYSQL_PORT}" 
-  -h"${US_MYSQL_HOST}"
+  -u"${US_MYSQL_USER:=mysql}" 
+  -p"${US_MYSQL_PASSWORD:=mysql}" 
+  -P"${US_MYSQL_PORT:=3306}" 
+  -h"${US_MYSQL_HOST:=localhost}"
 )
+
 echo "cmdline: ${cmdline[@]}" 
 
 for i in {0..20}; do
@@ -19,7 +25,7 @@ done;
 
 "${cmdline[@]}" -e 'create database userservice; show databases;'
 
-for sqlfile in ../scripts/*; do 
+for sqlfile in ../$US_DB_VENDOR/*; do 
   echo "sqlfile: '$sqlfile'"
   cat "$sqlfile" | "${cmdline[@]}" -Duserservice
 done

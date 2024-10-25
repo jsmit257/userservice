@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jsmit257/userservice/internal/data/mysql"
+	"github.com/jsmit257/userservice/internal/data"
 	"github.com/jsmit257/userservice/internal/metrics"
 	"github.com/jsmit257/userservice/internal/router"
 	"github.com/prometheus/client_golang/prometheus"
@@ -40,9 +40,13 @@ func main() {
 	//   - 	defer logFile.Close()
 	//   - }
 	//   - os.Link(logFilePath, logFileBasePath)
-	//   - log.SetOutput(logWriter)
-	log.SetOutput(os.Stdout)
-	// TODO: log.SetLevel(log.Level(cfg.LogLevel))
+	//   - log.SetOutput(logWriter)	log.SetOutput(os.Stderr)
+	// TODO: replace magic constant DebugLevel below
+	// logLevel, err := log.ParseLevel("LogLevel")
+	// if err != nil {
+	// 	// logLevel = log.DebugLvel  // fix it?
+	// }
+	// log.SetLevel(logLevel)
 	log.SetLevel(log.DebugLevel)
 	// log.SetReportCaller(true) // this seems expensive, maybe nice to have, check it out before enabling
 	log.SetFormatter(&log.JSONFormatter{})
@@ -53,7 +57,7 @@ func main() {
 
 	mtrcs := metrics.NewHandler(prometheus.NewRegistry())
 
-	mysql, err := mysql.NewInstance(
+	data, err := data.NewInstance(
 		cfg.MySQLUser,
 		cfg.MySQLPwd,
 		cfg.MySQLHost,
@@ -72,9 +76,9 @@ func main() {
 
 	srv := router.NewInstance(
 		&router.UserService{
-			User:    mysql,
-			Address: mysql,
-			Contact: mysql,
+			Userer:    data,
+			Addresser: data,
+			Contacter: data,
 		},
 		cfg.ServerHost,
 		cfg.ServerPort,
