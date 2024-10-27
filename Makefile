@@ -6,26 +6,27 @@ build:
 unit:
 	go test -cover ./...
 
-.PHONY: compile-serve-mysql
-compile-serve-mysql: build
-	docker-compose up --build --force-recreate build-serve-mysql
+.PHONY: mysql-migration
+mysql-migration:
+	docker-compose up --build --force-recreate --remove-orphans mysql-migration
 
-.PHONY: package-serve-mysql
-package-serve-mysql: compile-serve-mysql
-	docker-compose up --build --force-recreate package-serve-mysql
+.PHONY: mysql-test
+mysql-test:
+	docker-compose up --build --force-recreate --remove-orphans -d mysql-test
 
-.PHONY: test-serve-mysql
-test-serve-mysql: docker-down build
-	docker-compose up --build --force-recreate test-serve-mysql
+.PHONY: mysql-persist
+mysql-persist:
+	docker-compose up --build --force-recreate --remove-orphans -d mysql-persist
+
+.PHONY: serve-mysql
+serve-mysql:
+	docker-compose up --build --force-recreate --remove-orphans -d serve-mysql
 
 .PHONY: system-test
-system-test: docker-down package-serve-mysql
-	docker-compose up --build --force-recreate schema
-	docker-compose up serve-mysql &
-	sleep 2s
-	-cd ./tests/system; go test -v ./user/...
-	-curl localhost:3000/metrics
+system-test: unit docker-down mysql-test serve-mysql
+	./bin/test-integration
 
+.PHONY: vet
 vet:
 
 .PHONY: docker-down

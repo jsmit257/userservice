@@ -16,12 +16,12 @@ func init() {
 	DataMetrics = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "datailed_data_access_metrics",
 		Help: "The packages, methods and possible errors when accessing data",
-	}, []string{"pkg", "method", "err"})
+	}, []string{"pkg", "app", "db", "function", "err"})
 
 	ServiceMetrics = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "datailed_service_layer_metrics",
-		Help: "TODO: ",
-	}, []string{"function", "method", "sc", "err"})
+		Help: "Service requests tracked by method, function, statuscode, error",
+	}, []string{"pkg", "app", "method", "function", "sc", "err"})
 }
 
 func NewHandler(reg *prometheus.Registry) http.HandlerFunc {

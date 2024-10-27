@@ -6,106 +6,109 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/jsmit257/userservice/internal/data"
-	sharedv1 "github.com/jsmit257/userservice/shared/v1"
+	"github.com/jsmit257/userservice/shared/v1"
 )
 
-type User interface {
-	Authenticate(w http.ResponseWriter, r *http.Request)
-	GetUser(w http.ResponseWriter, r *http.Request)
-	PostUser(w http.ResponseWriter, r *http.Request)
-	PatchUser(w http.ResponseWriter, r *http.Request)
-	// DeleteUser(w http.ResponseWriter, r *http.Request)
+func (us UserService) GetAllUsers(w http.ResponseWriter, r *http.Request) {
+	m := mtrcs.MustCurryWith(prometheus.Labels{"function": "GetAllUsers", "method": http.MethodGet})
+
+	if user, err := us.Userer.GetAllUsers(r.Context(), cid()); err != nil {
+		sc(http.StatusBadRequest).send(m, w, err, err.Error())
+	} else {
+		sc(http.StatusOK).success(m, w, mustJSON(user))
+	}
 }
 
 func (us UserService) GetUser(w http.ResponseWriter, r *http.Request) {
-	cid := cid()
-	user, err := us.Userer.GetUser(r.Context(), sharedv1.UUID(chi.URLParam(r, "user_id")), cid)
-	if err != nil {
+	m := mtrcs.MustCurryWith(prometheus.Labels{"function": "GetUser", "method": http.MethodGet})
+
+	userid := shared.UUID(chi.URLParam(r, "user_id"))
+	if user, err := us.Userer.GetUser(r.Context(), userid, cid()); err != nil {
 		// TODO: differentiate between a missing userID (NotFound) and an http/service error
 		//       (InternalServerError/BadRequest) and log some info
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(err.Error()))
-		return
+		sc(http.StatusBadRequest).send(m, w, err, err.Error())
+	} else {
+		sc(http.StatusOK).success(m, w, mustJSON(user))
 	}
-	response, _ := json.Marshal(user) // nolint: errcheck // the error case can't really happen
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(response)
-}
-
-func (us *UserService) PatchUser(w http.ResponseWriter, r *http.Request) {
-	cid := cid()
-	var user sharedv1.User
-	userID := sharedv1.UUID(chi.URLParam(r, "user_id"))
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer r.Body.Close()
-	err = json.Unmarshal(body, &user)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(fmt.Sprintf("couldn't unmarshal: '%s'", body)))
-		return
-	} else if userID != user.UUID {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(fmt.Sprintf("user '%s' can't change attributes for user '%s'", userID, user.UUID)))
-		return
-	} else if err = us.Userer.UpdateUser(r.Context(), &user, cid); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(err.Error()))
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
 }
 
 func (us *UserService) PostUser(w http.ResponseWriter, r *http.Request) {
-	cid := cid()
-	// TODO: integrate logging/metrics and responsewrites into a helper function, probably in routes.go
-	m := mtrcs.MustCurryWith(prometheus.Labels{"function": "PostUser", "method": http.MethodPost})
-	var user sharedv1.User
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		m.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), err.Error()).Inc()
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
 	defer r.Body.Close()
-	err = json.Unmarshal(body, &user)
-	if err != nil {
-		m.WithLabelValues(strconv.Itoa(http.StatusBadRequest), err.Error()).Inc()
-		w.WriteHeader(http.StatusBadRequest)
-		return
+
+	var user shared.User
+
+	m := mtrcs.MustCurryWith(prometheus.Labels{"function": "PostUser", "method": http.MethodPost})
+
+	if body, err := io.ReadAll(r.Body); err != nil {
+		sc(http.StatusBadRequest).send(m, w, err)
+	} else if err = json.Unmarshal(body, &user); err != nil {
+		sc(http.StatusBadRequest).send(m, w, err)
+	} else if id, err := us.Userer.AddUser(r.Context(), &user, cid()); errors.Is(err, shared.UserExistsError) {
+		sc(http.StatusBadRequest).send(m, w, err, err.Error())
+	} else if errors.Is(err, shared.UserNotAddedError) {
+		sc(http.StatusInternalServerError).send(m, w, err)
+	} else if err != nil {
+		sc(http.StatusInternalServerError).send(m, w, err)
+	} else if id == "" {
+		sc(http.StatusInternalServerError).send(m, w, fmt.Errorf("userid_nil"))
+	} else {
+		sc(http.StatusMovedPermanently).success(m, w)
+		w.Header().Add("Location", "/resetpassword") // FIXME: url isn't so simple
+		w.Header().Add("OTC", "one time code")       // FIXME: need to figure out codes
+		_, _ = w.Write([]byte(id))
 	}
-	id, err := us.Userer.AddUser(r.Context(), &user, cid)
-	switch {
-	case errors.Is(err, data.UserExistsError):
-		m.WithLabelValues(strconv.Itoa(http.StatusBadRequest), fmt.Sprintf("%q", err)).Inc()
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	case errors.Is(err, data.UserNotAddedError):
-		m.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), fmt.Sprintf("%q", err)).Inc()
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	case err != nil:
-		m.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), fmt.Sprintf("%q", err)).Inc()
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+}
+
+func (us *UserService) PatchUser(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
+	var user shared.User
+
+	m := mtrcs.MustCurryWith(prometheus.Labels{"function": "PatchUser", "method": http.MethodPatch})
+
+	if body, err := io.ReadAll(r.Body); err != nil {
+		sc(http.StatusBadRequest).send(m, w, err)
+	} else if err = json.Unmarshal(body, &user); err != nil {
+		sc(http.StatusBadRequest).send(m, w, err, fmt.Sprintf("couldn't unmarshal: '%s'", body))
+	} else if err = us.Userer.UpdateUser(r.Context(), &user, cid()); err != nil {
+		sc(http.StatusInternalServerError).send(m, w, err, err.Error())
+	} else {
+		sc(http.StatusNoContent).success(m, w)
 	}
-	if id == "" {
-		m.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), "userid_nil").Inc()
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+}
+
+func (us *UserService) DeleteUser(w http.ResponseWriter, r *http.Request) {
+	m := mtrcs.MustCurryWith(prometheus.Labels{"function": "DeleteUser", "method": http.MethodDelete})
+
+	uuid := shared.UUID(chi.URLParam(r, "user_id"))
+	if err := us.Userer.DeleteUser(r.Context(), uuid, cid()); err != nil {
+		sc(http.StatusBadRequest).send(m, w, err, err.Error())
+	} else {
+		sc(http.StatusNoContent).success(m, w)
 	}
-	w.WriteHeader(http.StatusMovedPermanently)
-	m.WithLabelValues(strconv.Itoa(http.StatusMovedPermanently), "none").Inc()
-	w.Header().Add("location", "/resetpassword") // FIXME: url isn't so simple
-	w.Header().Add("otc", "one time code")       // FIXME: need to figure out codes
-	_, _ = w.Write([]byte(id))
+}
+
+func (us *UserService) CreateContact(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
+	var contact shared.Contact
+
+	m := mtrcs.MustCurryWith(prometheus.Labels{"function": "CreateContact", "method": http.MethodPost})
+
+	uuid := shared.UUID(chi.URLParam(r, "user_id"))
+	if user, err := us.Userer.GetUser(r.Context(), uuid, cid()); err != nil {
+		sc(http.StatusBadRequest).send(m, w, err, err.Error())
+	} else if body, err := io.ReadAll(r.Body); err != nil {
+		sc(http.StatusBadRequest).send(m, w, err)
+	} else if err = json.Unmarshal(body, &contact); err != nil {
+		sc(http.StatusBadRequest).send(m, w, err)
+	} else if _, err = us.Userer.CreateContact(r.Context(), user, contact, cid()); err != nil {
+		sc(http.StatusInternalServerError).send(m, w, err, err.Error())
+	} else {
+		sc(http.StatusOK).success(m, w, mustJSON(user))
+	}
 }
