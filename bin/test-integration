@@ -2,15 +2,16 @@
 
 echo "testing integration"
 
-sleep 2s # waiting for mysql to start; shouldn't be necessary
-
-go run ./internal/cmd/serve-mysql/... &
-
-userservice_pid=$!
+: ${US_SERVER_HOST:=localhost}
+: ${US_SERVER_PORT:=3000}
 
 for i in `seq 0 20`; do
-  echo curl -i "${US_SERVER_HOST}:${US_SERVER_PORT}/hc"
-  if curl -i "${US_SERVER_HOST}:${US_SERVER_PORT}/hc" 2>/dev/null; then 
+  hc=(curl -i "${US_SERVER_HOST}:${US_SERVER_PORT}/hc")
+
+  echo "${hc[@]}"
+
+  if ${hc[@]} 2>/dev/null; then 
+    echo
     echo "successful healthcheck"
     break
   elif [ "$i" -eq 20 ]; then 
@@ -18,16 +19,21 @@ for i in `seq 0 20`; do
     exit 1
   else
     echo "healthcheck failed, retrying: $i"
-  fi 
+  fi
+  
   sleep 1s
 done
 
+cd tests && go mod vendor && go clean -testcache 
+
 # run system tests
-go test -v -cover -race /go/src/build/tests/system/user/...
+MYSQL_HOST="snakeoil" \
+MYSQL_PORT="0" \
+MYSQL_USER="snakeoil" \
+MYSQL_PASSWORD="snakeoil" \
+go test -v -cover -race ./system/...
 
 # scrape metrics
 curl -i "${US_SERVER_HOST}:${US_SERVER_PORT}/metrics" 2>/dev/null
 
-echo "exiting test: '$userservice_pid'"
-
-kill -2 "$userservice_pid"
+echo "exiting test"

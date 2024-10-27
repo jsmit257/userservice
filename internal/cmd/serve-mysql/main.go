@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -9,10 +11,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jsmit257/userservice/internal/data"
-	"github.com/jsmit257/userservice/internal/metrics"
+	"github.com/jsmit257/userservice/internal/config"
+	data "github.com/jsmit257/userservice/internal/relational"
 	"github.com/jsmit257/userservice/internal/router"
-	"github.com/prometheus/client_golang/prometheus"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -26,7 +27,7 @@ var traps = []os.Signal{
 	syscall.SIGQUIT}
 
 func main() {
-	cfg := NewConfig()
+	cfg := config.NewConfig()
 
 	// TODO:
 	//   - os.MkdirAll(cfg.LogDir)
@@ -55,9 +56,7 @@ func main() {
 
 	logger.Debug("loaded config")
 
-	mtrcs := metrics.NewHandler(prometheus.NewRegistry())
-
-	data, err := data.NewInstance(
+	db, err := newInstance(
 		cfg.MySQLUser,
 		cfg.MySQLPwd,
 		cfg.MySQLHost,
@@ -74,15 +73,19 @@ func main() {
 
 	logger.Debug("configured mysql client")
 
+	sqls, err := config.NewSqls("mysql")
+	if err != nil {
+		logger.
+			WithFields(log.Fields{"cfg": cfg}).
+			WithError(err).
+			Fatal("failed to connect mysql client")
+	}
+
+	us := data.NewConn(db, sqls, logger)
+
 	srv := router.NewInstance(
-		&router.UserService{
-			Userer:    data,
-			Addresser: data,
-			Contacter: data,
-		},
-		cfg.ServerHost,
-		cfg.ServerPort,
-		mtrcs,
+		us,
+		cfg,
 		logger)
 
 	wg := &sync.WaitGroup{}
@@ -122,4 +125,24 @@ func trap(logger *log.Entry) {
 	signal.Notify(trapped, traps...)
 
 	logger.WithField("sig", <-trapped).Info("stopping app with signal")
+}
+
+func newInstance(dbuser, dbpass, dbhost string, dbport uint16, logger *log.Entry) (*sql.DB, error) {
+	l := logger.WithFields(log.Fields{
+		"mysql_user":     dbuser,
+		"mysql_hostname": dbhost,
+		"mysql_port":     dbport,
+	})
+	l.Debug("starting mysql conn")
+	url := fmt.Sprintf("%s:%s@tcp(%s:%d)/userservice?parseTime=true", dbuser, dbpass, dbhost, dbport)
+	db, err := sql.Open("mysql", url)
+	if err != nil {
+		l.WithError(err).Error("failed to create mysql conn")
+		return nil, err
+	} else if err = db.Ping(); err != nil {
+		l.WithError(err).Error("failed to ping mysql conn")
+		return nil, err
+	}
+	l.Info("successfully connected to mysql")
+	return db, nil
 }

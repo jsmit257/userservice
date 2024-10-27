@@ -4,82 +4,58 @@ x-mysql-host: &mysql-host percona
 x-mysql-port: &mysql-port 3306
 x-mysql-pwd: &mysql-pwd root
 x-mysql-user: &mysql-user root
+x-http-host: &http-host servicetester
+x-http-port: &http-port 3000
+x-persist-volumes: &atndalone-volumes
+  - ./data:/var/lib/mysql
 
 services:
 
-  mysql:
-    image: percona:ps-8.0.29-21
+  # a standalone userservice database. nothing here is persisted 
+  # to the filesystem - use mysql-migration+mysql-persist for that.
+  # you don't need to test it, since it's the build stage for 
+  # mysql-persist and errors will be caught there, but it is good 
+  # for testing the userservice and not leaving a mess behind
+  mysql-test:
+    image: jsmit257/us-db-mysql-test
+    build:
+      context: .
+      dockerfile: Dockerfile.mysql
     restart: always
     hostname: *mysql-host
-    volumes: [ .:/go/src/build ]
     ports:
       - 6033:3306
     environment:
       MYSQL_ROOT_PASSWORD: *mysql-pwd
 
-  schema:
-    depends_on: [ mysql ]
-    # it's the same image as mysql, so get the mysql-client basically for free
-    image: percona:ps-8.0.29-21
-    # apply a userservice schema to the percona container
-    volumes: [ ./sql:/sql ]
-    environment:
-      US_MYSQL_HOST: *mysql-host
-      US_MYSQL_PASSWORD: *mysql-pwd
-      US_MYSQL_PORT: *mysql-port
-      US_MYSQL_USER: *mysql-user
-    working_dir: /bin
-    command: ./driver
-
-  build-serve-mysql:
-    # build a specific cmd app, stash the artifact on the local filesystem
+  mysql-migration:
+    image: jsmit257/us-db-mysql-mig
     build:
       context: .
-      target: build
-    volumes: [ .:/go/src/build ]
-    working_dir: /go/src/build
+      dockerfile: Dockerfile.mysql
+      target: migration
+    volumes: *atndalone-volumes
+    entrypoint: /var/lib/mysql-files/install-userservice.sh mysqld
 
-  package-serve-mysql:
-    image: userservice-deploy-serve-mysql
-    # deploy the app to a slim container for deploy
-    build: .
-    volumes: [ .:/go/src/build ]
-    working_dir: /go/src/build
+  mysql-persist:
+    image: percona:ps-8.0.36-28
+    # image: jsmit257/us-db-mysql-auto:lkg
+    depends_on: [ mysql-migration ]
+    restart: always
+    hostname: *mysql-host
+    volumes: *atndalone-volumes
+    environment:
+      MYSQL_ROOT_PASSWORD: *mysql-pwd
 
   serve-mysql:
-    depends_on:
-      - schema
-      - package-serve-mysql
-    image: userservice-deploy-serve-mysql
-    hostname: servicetester
+    image: jsmit257/us-srv-mysql
+    build: .
+    hostname: *http-host
     ports: [ 3000:3000 ]
     environment:
       US_MYSQL_HOST: *mysql-host
       US_MYSQL_PASSWORD: *mysql-pwd
       US_MYSQL_PORT: *mysql-port
       US_MYSQL_USER: *mysql-user
-    command: /user-service
-
-  foo:
-    depends_on: [ serve-mysql ]
-    image: golang:latest
-    volumes: [ ./tests:/go/src/build ]
-    environment:
-      US_SERVER_HOST: servicetester
-      US_SERVER_PORT: 3000
-    working_dir: /go/src/build/system
-    command: go test -v -cover ./user/...
-
-  test-serve-mysql:
-    depends_on: [ schema ]
-    image: golang:latest
-    volumes: [ .:/go/src/build ]
-    environment:
-      US_MYSQL_HOST: *mysql-host
-      US_MYSQL_PASSWORD: *mysql-pwd
-      US_MYSQL_PORT: *mysql-port
-      US_MYSQL_USER: *mysql-user
-      US_SERVER_HOST: localhost
-      US_SERVER_PORT: 3000
-    working_dir: /go/src/build
-    command: ./bin/test-integration
+      US_HTTP_HOST: *http-host
+      US_HTTP_PORT: *http-port
