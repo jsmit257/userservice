@@ -18,6 +18,8 @@ type (
 		Login(context.Context, *BasicAuth, CID) (*BasicAuth, error)
 	}
 
+	BasicAuther interface{}
+
 	Contacter interface {
 		UpdateContact(context.Context, UUID, *Contact, CID) error
 	}

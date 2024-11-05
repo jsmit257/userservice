@@ -24,6 +24,7 @@ const (
 	contactpatch
 	resetpass
 	logintest
+	logouttest
 	pwdtest
 	passchange
 	pwdfail

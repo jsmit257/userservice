@@ -15,6 +15,7 @@ import (
 
 	"github.com/jsmit257/userservice/internal/config"
 	"github.com/jsmit257/userservice/internal/metrics"
+	valid "github.com/jsmit257/userservice/internal/validation"
 	"github.com/jsmit257/userservice/shared/v1"
 )
 
@@ -24,6 +25,7 @@ type (
 		shared.Auther
 		shared.Contacter
 		shared.Userer
+		valid.Validator
 	}
 
 	sc int
@@ -73,6 +75,9 @@ func NewInstance(us *UserService, cfg *config.Config, logger *log.Entry) *http.S
 	r.Get("/auth/{username}", us.GetAuth)
 	r.Post("/auth", us.PostLogin)
 	r.Patch("/auth/{user_id}", us.PatchLogin)
+
+	r.Post("/auth/{token}/logout", us.Logout)
+	r.Get("/auth/{token}/valid", us.Valid)
 
 	r.Get("/hc", hc)
 

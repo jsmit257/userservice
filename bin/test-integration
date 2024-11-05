@@ -8,7 +8,7 @@ echo "testing integration"
 for i in `seq 0 20`; do
   hc=(curl -i "${US_SERVER_HOST}:${US_SERVER_PORT}/hc")
 
-  echo "${hc[@]}"
+  echo -n "${hc[@]} "
 
   if ${hc[@]} 2>/dev/null; then 
     echo

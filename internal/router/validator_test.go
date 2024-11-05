@@ -1,0 +1,135 @@
+package router
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/jsmit257/userservice/shared/v1"
+	"github.com/stretchr/testify/require"
+)
+
+type mockValidator struct {
+	login *http.Cookie
+
+	logout,
+	valid int
+}
+
+var testCookie = http.Cookie{
+	Name:     "us-authz",
+	Path:     "/",
+	Expires:  time.Time{},
+	MaxAge:   -1,
+	HttpOnly: true,
+	Raw:      "us-authz=; Path=/; Max-Age=0; HttpOnly",
+}
+
+func Test_PostLogout(t *testing.T) {
+	t.Parallel()
+
+	tcs := map[string]struct {
+		token string
+		mv    *mockValidator
+		sc    int
+	}{
+		"pass_through": {
+			token: "foobar",
+			mv:    &mockValidator{logout: http.StatusFound},
+			sc:    http.StatusFound,
+		},
+		"missing_token": {
+			sc: http.StatusBadRequest,
+		},
+	}
+
+	for name, tc := range tcs {
+		name, tc := name, tc
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			us := &UserService{Validator: tc.mv}
+			w := httptest.NewRecorder()
+			rctx := chi.NewRouteContext()
+			rctx.URLParams = chi.RouteParams{Keys: []string{"token"}, Values: []string{tc.token}}
+			r, _ := http.NewRequestWithContext(
+				context.WithValue(
+					context.Background(),
+					chi.RouteCtxKey,
+					rctx),
+				http.MethodPost,
+				"tc.url",
+				nil,
+			)
+
+			us.Logout(w, r)
+
+			require.Equal(t, tc.sc, w.Code)
+			if w.Code == http.StatusFound {
+				require.Subset(t, w.Result().Cookies(), []*http.Cookie{&testCookie})
+			} else {
+				require.NotSubset(t, w.Result().Cookies(), []*http.Cookie{&testCookie})
+			}
+		})
+	}
+}
+
+func Test_GetValid(t *testing.T) {
+	t.Parallel()
+
+	tcs := map[string]struct {
+		token string
+		mv    *mockValidator
+		sc    int
+	}{
+		"pass_through": {
+			token: "foobar",
+			mv:    &mockValidator{valid: http.StatusFound},
+			sc:    http.StatusFound,
+		},
+		"missing_token": {
+			sc: http.StatusBadRequest,
+		},
+	}
+
+	for name, tc := range tcs {
+		name, tc := name, tc
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			us := &UserService{Validator: tc.mv}
+			w := httptest.NewRecorder()
+			rctx := chi.NewRouteContext()
+			rctx.URLParams = chi.RouteParams{Keys: []string{"token"}, Values: []string{tc.token}}
+			r, _ := http.NewRequestWithContext(
+				context.WithValue(
+					context.Background(),
+					chi.RouteCtxKey,
+					rctx),
+				http.MethodPost,
+				"tc.url",
+				nil,
+			)
+
+			us.Valid(w, r)
+
+			require.Equal(t, tc.sc, w.Code)
+		})
+	}
+}
+
+func (mv *mockValidator) Clear(context.Context, shared.CID) {}
+func (mv *mockValidator) Login(context.Context, shared.CID) *http.Cookie {
+	return mv.login
+}
+func (mv *mockValidator) Logout(context.Context, string, shared.CID) (*http.Cookie, int) {
+	return &testCookie, mv.logout
+}
+func (mv *mockValidator) Valid(context.Context, string, shared.CID) int {
+	return mv.valid
+}

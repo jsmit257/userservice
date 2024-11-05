@@ -27,5 +27,6 @@ func Test_NewInstance(t *testing.T) {
 		Auther:    &mockAuther{},
 		Contacter: &mockContacter{},
 		Userer:    &mockUserer{},
+		Validator: &mockValidator{},
 	}, config.NewConfig(), nil)
 }

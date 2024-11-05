@@ -14,6 +14,7 @@ import (
 	"github.com/jsmit257/userservice/internal/config"
 	data "github.com/jsmit257/userservice/internal/relational"
 	"github.com/jsmit257/userservice/internal/router"
+	valid "github.com/jsmit257/userservice/internal/validation"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -82,6 +83,7 @@ func main() {
 	}
 
 	us := data.NewConn(db, sqls, logger)
+	us.Validator = valid.NewValidator(cfg)
 
 	srv := router.NewInstance(
 		us,

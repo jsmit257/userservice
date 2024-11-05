@@ -42,6 +42,7 @@ func (us UserService) PostLogin(w http.ResponseWriter, r *http.Request) {
 	} else if user, err := us.Userer.GetUser(r.Context(), auth.UUID, cid); err != nil {
 		sc(http.StatusInternalServerError).send(m, w, err, err.Error())
 	} else {
+		http.SetCookie(w, us.Validator.Login(r.Context(), cid))
 		sc(http.StatusOK).success(m, w, mustJSON(user))
 	}
 }

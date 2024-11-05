@@ -122,6 +122,15 @@ func Test_LoginPost(t *testing.T) {
 			require.Equal(t, tc.sc, resp.StatusCode, string(body))
 
 			if resp.StatusCode == http.StatusOK {
+				j := len(resp.Cookies())
+				for i, c := range resp.Cookies() {
+					if c.Name == "us-authz" {
+						require.NotEmpty(t, c.Value)
+						break
+					} else if i == j {
+						require.Fail(t, "auth token not found", c)
+					}
+				}
 				var want, got *shared.User
 				require.Nil(t, json.Unmarshal([]byte(tc.resp), &want), tc.resp)
 				require.Nil(t, json.Unmarshal(body, &got), string(body))
@@ -192,10 +201,7 @@ func Test_LoginPatch(t *testing.T) {
 			defer resp.Body.Close()
 
 			require.Equal(t, tc.sc, resp.StatusCode, string(body))
-
-			// if resp.StatusCode != http.StatusNoContent {
 			require.Equal(t, tc.resp, string(body))
-			// }
 		})
 	}
 }

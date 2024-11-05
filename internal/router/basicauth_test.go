@@ -105,6 +105,7 @@ func Test_PostLogin(t *testing.T) {
 	tcs := map[string]struct {
 		a        *mockAuther
 		u        *mockUserer
+		v        *mockValidator
 		login    shared.BasicAuth
 		response *shared.User
 		sc       int
@@ -112,6 +113,7 @@ func Test_PostLogin(t *testing.T) {
 		"happy_path": {
 			a:        &mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
 			u:        &mockUserer{user: &shared.User{UUID: "uuid"}},
+			v:        &mockValidator{login: &testCookie},
 			login:    shared.BasicAuth{},
 			response: &shared.User{UUID: "uuid"},
 			sc:       http.StatusOK,
@@ -141,8 +143,9 @@ func Test_PostLogin(t *testing.T) {
 			t.Parallel()
 
 			us := &UserService{
-				Auther: tc.a,
-				Userer: tc.u,
+				Auther:    tc.a,
+				Userer:    tc.u,
+				Validator: tc.v,
 			}
 
 			body := authToBody(&tc.login)
@@ -172,6 +175,11 @@ func Test_PostLogin(t *testing.T) {
 			var temp *shared.User
 			_ = json.Unmarshal(resp, &temp)
 			require.Equal(t, tc.response, temp)
+			if w.Code == http.StatusOK {
+				require.Subset(t, w.Result().Cookies(), []*http.Cookie{&testCookie})
+			} else {
+				require.NotSubset(t, w.Result().Cookies(), []*http.Cookie{&testCookie})
+			}
 		})
 	}
 }
