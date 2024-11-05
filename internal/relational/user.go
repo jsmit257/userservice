@@ -61,7 +61,6 @@ func (db *Conn) GetUser(ctx context.Context, id shared.UUID, cid shared.CID) (*s
 }
 
 func (db *Conn) AddUser(ctx context.Context, u *shared.User, cid shared.CID) (shared.UUID, error) {
-	// salt := generateSalt()
 	now := time.Now().UTC()
 	u.UUID = db.generateUUID()
 	u.MTime = now
