@@ -26,6 +26,11 @@ serve-mysql:
 system-test: unit docker-down mysql-test serve-mysql
 	./bin/test-integration
 
+.PHONY: web-test
+web-test:
+	docker-compose down us-web-test
+	docker-compose up --build --remove-orphans -d us-web-test
+
 .PHONY: vet
 vet:
 

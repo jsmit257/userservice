@@ -11,7 +11,7 @@ type Sqls map[string]map[string]string
 
 func NewSqls(vendor string) (Sqls, error) {
 
-	f, err := os.Open(fmt.Sprintf("/sql/%s/runtime.yaml", vendor))
+	f, err := os.Open(fmt.Sprintf("sql/%s/runtime.yaml", vendor))
 	if err != nil {
 		return nil, err
 	}

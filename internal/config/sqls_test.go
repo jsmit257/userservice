@@ -1,44 +1,46 @@
 package config
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 func Test_NewSqls(t *testing.T) {
-	t.Skip()
 	t.Parallel()
 
+	err := os.Chdir("../..")
+	require.Nil(t, err)
+
 	tcs := map[string]struct {
-		vendor string
-		result Sqls
-		err    bool
+		vendor         string
+		result, actual Sqls
+		err            bool
 	}{
 		"happy_path": {
 			vendor: "mysql",
 			result: Sqls{
 				"address": map[string]string{
-					"delete":     "update addresses set dtime = ? where uuid = ?",
 					"insert":     "insert into  addresses( uuid, street1, street2, city, state, country, zip, mtime, ctime) values  (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-					"select":     "select  uuid, street1, street2, city, state, country, zip, mtime, ctime, dtime from  addresses where  uuid = ?",
-					"select-all": "select  uuid, street1, street2, city, state, country, zip, mtime, ctime, dtime from  addresses",
+					"select":     "select  uuid, street1, street2, city, state, country, zip, mtime, ctime from  addresses where  uuid = ?",
+					"select-all": "select  uuid, street1, street2, city, state, country, zip, mtime, ctime from  addresses",
 					"update":     "update  addresses set  street1 = ?, street2 = ?, city = ?, state = ?, country = ?, zip = ?, mtime = ? where  uuid = ?",
 				},
 				"basic-auth": map[string]string{
-					"select": "select  id, password, salt, loginsuccess, loginfailure, failurecount from  users where  uuid = ?",
+					"select": "select  uuid, name, password, salt, loginsuccess, loginfailure, failurecount, mtime, ctime from  users where  uuid = coalesce(?, uuid) and  name = coalesce(?, name)",
 					"update": "update  users set  password = ?, salt = ?, loginsuccess = ?, loginfailure = ?, failurecount = ?, mtime = current_timestamp where  uuid = ?",
 				},
 				"contact": map[string]string{
-					"delete": "update contact set dtime = ? where uuid = ?",
-					"insert": "insert into  contacts( uuid, firstname, lastname, billto_uuid, shipto_uuid, mtime, ctime) values  (?, ?, ?, ?, ?, ?, ?)",
-					"update": "update  contacts set  uuid = ?, firstname = ?, lastname = ?, billto_uuid = ? shipto_uuid = ? mtime = ? where  uuid = ?",
+					"insert": "insert into  contacts( uuid, firstname, lastname, billto_uuid, shipto_uuid, mtime, ctime) select  uuid, ?, ?, ?, ?, ?, ? from users where uuid = ?",
+					"select": "select  firstname, lastname, billto_uuid, shipto_uuid, mtime, ctime from  contacts where  uuid = ?",
+					"update": "update  contacts set  firstname = ?, lastname = ?, billto_uuid = ?, shipto_uuid = ?, mtime = ? where  uuid = ?",
 				},
 				"user": map[string]string{
 					"delete":     "update users set dtime = ? where uuid = ?",
 					"insert":     "insert into  users(uuid, name, password, salt, mtime, ctime) values  (?, ?, ?, ?, ?, ?)",
-					"select":     "select  u.id, u.name, u.mtime, u.ctime, u.dtime, c.firstname, c.lastname, c.billto_uuid, c.shipto_uuid, c.mtime as contact_mtime, c.ctime as contact_ctime, c.dtime as contact_dtime from  users u left join  contacts c on  u.uuid = c.uuid where  uuid = ?",
-					"select-all": "select  id, name, mtime, ctime, dtime, loginsuccess, loginfailure, failurecount from  users",
+					"select":     "select  uuid, name, mtime, ctime, dtime from  users where  uuid = ?",
+					"select-all": "select  uuid, name, mtime, ctime, dtime from  users",
 					"update":     "update  users set  name = ?, mtime = ? where  uuid = ?",
 				},
 			},
@@ -59,7 +61,7 @@ func Test_NewSqls(t *testing.T) {
 			if tc.err {
 				require.NotNil(t, err)
 			} else {
-				require.Nil(t, err)
+				require.Nil(t, err, func(s string, e error) string { return s }(os.Getwd()))
 			}
 			require.Equal(t, tc.result, result)
 		})

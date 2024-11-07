@@ -76,8 +76,8 @@ func NewInstance(us *UserService, cfg *config.Config, logger *log.Entry) *http.S
 	r.Post("/auth", us.PostLogin)
 	r.Patch("/auth/{user_id}", us.PatchLogin)
 
-	r.Post("/auth/{token}/logout", us.Logout)
-	r.Get("/auth/{token}/valid", us.Valid)
+	r.Post("/logout", us.PostLogout)
+	r.Get("/valid", us.GetValid)
 
 	r.Get("/hc", hc)
 

@@ -106,7 +106,7 @@ func (db *Conn) Login(ctx context.Context, login *shared.BasicAuth, cid shared.C
 	return result, err
 }
 
-func (db *Conn) updateBasicAuth(ctx context.Context, login *shared.BasicAuth, cid shared.CID) error {
+func (db *Conn) updateBasicAuth(ctx context.Context, login *shared.BasicAuth, _ shared.CID) error {
 	result, err := db.ExecContext(ctx, db.sqls["basic-auth"]["update"],
 		login.Pass,
 		login.Salt,

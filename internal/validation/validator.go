@@ -12,10 +12,13 @@ import (
 )
 
 type (
+	// use this for unit testing once the redis question is answered
+	authz map[string]time.Time
+
 	core struct {
-		// this needs to be in redis, or something fast and shareable, core
+		// this needs to be in redis, or something fast and shareable
 		// would make a good unit mock
-		authz map[string]time.Time
+		authz
 		// shoulen't need this with a proper remote store
 		rwlock     sync.RWMutex
 		timeout    time.Duration
@@ -51,6 +54,9 @@ func NewValidator(cfg *config.Config) Validator {
 }
 
 func (v *core) Clear(context.Context, shared.CID) {
+	v.rwlock.Lock()
+	defer v.rwlock.Unlock()
+
 	for k := range v.authz {
 		delete(v.authz, k)
 	}
@@ -65,6 +71,9 @@ func (v *core) Login(ctx context.Context, cid shared.CID) *http.Cookie {
 		HttpOnly: true,
 	}
 
+	v.rwlock.Lock()
+	defer v.rwlock.Unlock()
+
 	v.authz[result.Value] = time.Now().UTC()
 
 	return result
@@ -73,12 +82,18 @@ func (v *core) Login(ctx context.Context, cid shared.CID) *http.Cookie {
 func (v *core) Logout(ctx context.Context, token string, cid shared.CID) (*http.Cookie, int) {
 	result := v.Valid(ctx, token, cid)
 	if result == http.StatusFound {
+		v.rwlock.Lock()
+		defer v.rwlock.Unlock()
+
 		delete(v.authz, token)
 	}
 	return logoutCookie(v.cookieName), result
 }
 
 func (v *core) Valid(ctx context.Context, token string, cid shared.CID) int {
+	v.rwlock.Lock()
+	defer v.rwlock.Unlock()
+
 	if t, ok := v.authz[token]; !ok {
 		return http.StatusForbidden
 	} else if t.Add(v.timeout).Before(time.Now().UTC()) {

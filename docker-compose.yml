@@ -58,3 +58,14 @@ services:
       US_MYSQL_USER: *mysql-user
       US_HTTP_HOST: *http-host
       US_HTTP_PORT: *http-port
+
+  us-web-test:
+    image: jsmit257/us-web-test
+    restart: always
+    build:
+      context: ./nginx
+      dockerfile: ./Dockerfile
+    ports: [ 8585:80 ]
+    environment:
+      US_HTTP_HOST: *http-host
+      US_HTTP_PORT: *http-port

@@ -42,7 +42,7 @@ func Test_PostLogout(t *testing.T) {
 			sc:    http.StatusFound,
 		},
 		"missing_token": {
-			sc: http.StatusBadRequest,
+			sc: http.StatusForbidden,
 		},
 	}
 
@@ -54,19 +54,24 @@ func Test_PostLogout(t *testing.T) {
 
 			us := &UserService{Validator: tc.mv}
 			w := httptest.NewRecorder()
-			rctx := chi.NewRouteContext()
-			rctx.URLParams = chi.RouteParams{Keys: []string{"token"}, Values: []string{tc.token}}
 			r, _ := http.NewRequestWithContext(
 				context.WithValue(
 					context.Background(),
 					chi.RouteCtxKey,
-					rctx),
+					chi.NewRouteContext()),
 				http.MethodPost,
 				"tc.url",
 				nil,
 			)
+			if tc.token != "" {
+				r.AddCookie(&http.Cookie{
+					Name:    "us-authz",
+					Value:   tc.token,
+					Expires: time.Now().UTC().Add(time.Hour),
+				})
+			}
 
-			us.Logout(w, r)
+			us.PostLogout(w, r)
 
 			require.Equal(t, tc.sc, w.Code)
 			if w.Code == http.StatusFound {
@@ -92,7 +97,7 @@ func Test_GetValid(t *testing.T) {
 			sc:    http.StatusFound,
 		},
 		"missing_token": {
-			sc: http.StatusBadRequest,
+			sc: http.StatusForbidden,
 		},
 	}
 
@@ -104,19 +109,24 @@ func Test_GetValid(t *testing.T) {
 
 			us := &UserService{Validator: tc.mv}
 			w := httptest.NewRecorder()
-			rctx := chi.NewRouteContext()
-			rctx.URLParams = chi.RouteParams{Keys: []string{"token"}, Values: []string{tc.token}}
 			r, _ := http.NewRequestWithContext(
 				context.WithValue(
 					context.Background(),
 					chi.RouteCtxKey,
-					rctx),
+					chi.NewRouteContext()),
 				http.MethodPost,
 				"tc.url",
 				nil,
 			)
+			if tc.token != "" {
+				r.AddCookie(&http.Cookie{
+					Name:    "us-authz",
+					Value:   tc.token,
+					Expires: time.Now().UTC().Add(time.Hour),
+				})
+			}
 
-			us.Valid(w, r)
+			us.GetValid(w, r)
 
 			require.Equal(t, tc.sc, w.Code)
 		})

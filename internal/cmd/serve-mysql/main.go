@@ -57,7 +57,7 @@ func main() {
 
 	logger.Debug("loaded config")
 
-	db, err := newInstance(
+	db, err := newMysql(
 		cfg.MySQLUser,
 		cfg.MySQLPwd,
 		cfg.MySQLHost,
@@ -129,7 +129,7 @@ func trap(logger *log.Entry) {
 	logger.WithField("sig", <-trapped).Info("stopping app with signal")
 }
 
-func newInstance(dbuser, dbpass, dbhost string, dbport uint16, logger *log.Entry) (*sql.DB, error) {
+func newMysql(dbuser, dbpass, dbhost string, dbport uint16, logger *log.Entry) (*sql.DB, error) {
 	l := logger.WithFields(log.Fields{
 		"mysql_user":     dbuser,
 		"mysql_hostname": dbhost,
