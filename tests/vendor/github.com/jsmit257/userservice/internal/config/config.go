@@ -10,8 +10,13 @@ type Config struct {
 	MySQLPwd  string `envconfig:"MYSQL_PASSWORD" required:"true" json:"-"`
 	MySQLUser string `envconfig:"MYSQL_USER" required:"true" json:"mysql_user"`
 
-	AuthzTimeout int64  `envconfig:"AUTHZ_TIMEOUT" default:"15" json:"authz_timeout"`
-	CookieName   string `envconfig:"AUTHZ_COOKIE" default:"us-authz" json:"authz_cookie"`
+	RedisUser string `envconfig:"REDIS_USER" json:"redis_user"`
+	RedisPass string `envconfig:"REDIS_PASS" json:"-"`
+	RedisHost string `envconfig:"REDIS_HOST" default:"redis" json:"redis_host"`
+	RedisPort int16  `envconfig:"REDIS_PORT" default:"6379" json:"redis_port"`
+
+	AuthnTimeout int64  `envconfig:"AUTHN_TIMEOUT" default:"15" json:"authn_timeout"`
+	CookieName   string `envconfig:"AUTHN_COOKIE" default:"us-authn" json:"authn_cookie"`
 
 	ServerHost string `envconfig:"HTTP_HOST" default:"0.0.0.0" json:"server_host"`
 	ServerPort uint16 `envconfig:"HTTP_PORT" default:"3000" json:"server_port"`

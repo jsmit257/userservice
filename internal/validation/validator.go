@@ -2,36 +2,53 @@ package valid
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
-	"sync"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
+
 	"github.com/jsmit257/userservice/internal/config"
 	"github.com/jsmit257/userservice/shared/v1"
 )
 
 type (
-	// use this for unit testing once the redis question is answered
-	authz map[string]time.Time
+	authn struct {
+		UserID  shared.UUID `json:"userid,omitempty"`
+		Expires time.Time   `json:"expires,omitempty"`
+		Remote  string      `json:"remote,omitempty"`
+	}
+
+	authnClient interface {
+		Decr(context.Context, string) *redis.IntCmd
+		HDel(context.Context, string, ...string) *redis.IntCmd
+		HGet(context.Context, string, string) *redis.StringCmd
+		HSet(context.Context, string, ...interface{}) *redis.IntCmd
+		Incr(context.Context, string) *redis.IntCmd
+	}
 
 	core struct {
-		// this needs to be in redis, or something fast and shareable
-		// would make a good unit mock
-		authz
-		// shoulen't need this with a proper remote store
-		rwlock     sync.RWMutex
+		rc         authnClient
 		timeout    time.Duration
 		cookieName string
 	}
 
 	Validator interface {
-		Clear(context.Context, shared.CID)
-		Login(context.Context, shared.CID) *http.Cookie
+		Login(context.Context, shared.UUID, string, shared.CID) (*http.Cookie, int)
 		Logout(context.Context, string, shared.CID) (*http.Cookie, int)
 		Valid(context.Context, string, shared.CID) int
 	}
 )
+
+func (a authn) val() map[string]interface{} {
+	text, _ := json.Marshal(a)
+	var result map[string]interface{}
+	_ = json.Unmarshal(text, &result)
+	return result
+}
 
 func logoutCookie(name string) *http.Cookie {
 	return &http.Cookie{
@@ -44,25 +61,27 @@ func logoutCookie(name string) *http.Cookie {
 	}
 }
 
-func NewValidator(cfg *config.Config) Validator {
+func NewValidator(client authnClient, cfg *config.Config) Validator {
 	return &core{
-		authz:      make(map[string]time.Time),
-		rwlock:     sync.RWMutex{},
-		timeout:    time.Duration(cfg.AuthzTimeout) * time.Minute,
+		rc:         client,
+		timeout:    time.Duration(cfg.AuthnTimeout) * time.Minute,
 		cookieName: cfg.CookieName,
 	}
 }
 
-func (v *core) Clear(context.Context, shared.CID) {
-	v.rwlock.Lock()
-	defer v.rwlock.Unlock()
-
-	for k := range v.authz {
-		delete(v.authz, k)
+func (v *core) Login(ctx context.Context, userid shared.UUID, remote string, cid shared.CID) (*http.Cookie, int) {
+	key := "user:" + string(userid)
+	if count, err := v.rc.Incr(ctx, key).Result(); err != nil && err != redis.Nil {
+		fmt.Fprintf(os.Stderr, "coundn't increment: '%v'\n", err)
+		return nil, http.StatusInternalServerError
+	} else if count > 5 { // FIXME: move magic to config
+		if err = v.rc.Decr(ctx, key).Err(); err != nil {
+			fmt.Fprintf(os.Stderr, "couldn't decrement: '%v'\n", err)
+			return nil, http.StatusInternalServerError
+		}
+		return nil, http.StatusTooManyRequests
 	}
-}
 
-func (v *core) Login(ctx context.Context, cid shared.CID) *http.Cookie {
 	result := &http.Cookie{
 		Name:     v.cookieName,
 		Value:    uuid.NewString(),
@@ -71,36 +90,47 @@ func (v *core) Login(ctx context.Context, cid shared.CID) *http.Cookie {
 		HttpOnly: true,
 	}
 
-	v.rwlock.Lock()
-	defer v.rwlock.Unlock()
+	err := v.rc.HSet(ctx, "token:"+result.Value, authn{
+		UserID:  userid,
+		Expires: result.Expires,
+		Remote:  remote,
+	}.val()).Err()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "fucktard: '%v'\n", err)
+		return nil, http.StatusInternalServerError
+	}
 
-	v.authz[result.Value] = time.Now().UTC()
-
-	return result
+	return result, http.StatusOK
 }
 
 func (v *core) Logout(ctx context.Context, token string, cid shared.CID) (*http.Cookie, int) {
-	result := v.Valid(ctx, token, cid)
-	if result == http.StatusFound {
-		v.rwlock.Lock()
-		defer v.rwlock.Unlock()
-
-		delete(v.authz, token)
+	if result := v.Valid(ctx, token, cid); result != http.StatusFound {
+		return nil, result
 	}
-	return logoutCookie(v.cookieName), result
+
+	if userid, err := v.rc.HGet(ctx, "token:"+token, "userid").Result(); err != nil {
+		return nil, http.StatusInternalServerError
+	} else if err := v.rc.HDel(ctx, "token:"+token, "userid", "expires", "remote").Err(); err != nil {
+		return nil, http.StatusInternalServerError
+	} else if err = v.rc.Decr(ctx, "user:"+userid).Err(); err != nil {
+		return nil, http.StatusInternalServerError
+	}
+
+	return logoutCookie(v.cookieName), http.StatusAccepted // like StatusGone better, but it's a 4xx series
 }
 
 func (v *core) Valid(ctx context.Context, token string, cid shared.CID) int {
-	v.rwlock.Lock()
-	defer v.rwlock.Unlock()
-
-	if t, ok := v.authz[token]; !ok {
+	if expires, err := v.rc.HGet(ctx, "token:"+token, "expires").Result(); err == redis.Nil {
 		return http.StatusForbidden
+	} else if err != nil {
+		fmt.Fprintf(os.Stdout, "dammit: '%s', '%v'\n", err.Error(), err)
+		return http.StatusInternalServerError
+	} else if t, err := time.Parse(time.RFC3339, expires); err != nil {
+		fmt.Fprintf(os.Stdout, "failed timestamp: '%v'\n", expires)
+		return http.StatusInternalServerError
 	} else if t.Add(v.timeout).Before(time.Now().UTC()) {
 		return http.StatusForbidden
 	}
-
-	v.authz[token] = time.Now().UTC()
 
 	return http.StatusFound
 }

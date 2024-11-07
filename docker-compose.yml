@@ -4,6 +4,10 @@ x-mysql-host: &mysql-host percona
 x-mysql-port: &mysql-port 3306
 x-mysql-pwd: &mysql-pwd root
 x-mysql-user: &mysql-user root
+x-redis-user: &redis-user redis
+x-redis-pass: &redis-pass redis
+x-redis-host: &redis-host us-redis
+x-redis-port: &redis-port 6379
 x-http-host: &http-host servicetester
 x-http-port: &http-port 3000
 x-persist-volumes: &standalone-volumes
@@ -59,6 +63,12 @@ services:
       US_HTTP_HOST: *http-host
       US_HTTP_PORT: *http-port
 
+  redis:
+    image: redis:bookworm
+    restart: always
+    hostname: *redis-host
+    ports: [ 6666:6379 ]
+
   us-web-test:
     image: jsmit257/us-web-test
     restart: always
@@ -69,3 +79,7 @@ services:
     environment:
       US_HTTP_HOST: *http-host
       US_HTTP_PORT: *http-port
+      US_REDIS_USER: *redis-user
+      US_REDIS_PASS: *redis-pass
+      US_REDIS_HOST: *redis-host
+      US_REDIS_PORT: *redis-port

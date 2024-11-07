@@ -10,7 +10,7 @@ import (
 func (us UserService) PostLogout(w http.ResponseWriter, r *http.Request) {
 	m := mtrcs.MustCurryWith(prometheus.Labels{"function": "PostLogout", "method": http.MethodPost})
 
-	token, err := r.Cookie("us-authz")
+	token, err := r.Cookie("us-authn")
 	if err != nil { // FIXME? do some kind of redirect?
 		sc(http.StatusForbidden).send(m, w, shared.MissingAuthToken, shared.MissingAuthToken.Error())
 		return
@@ -26,7 +26,7 @@ func (us UserService) PostLogout(w http.ResponseWriter, r *http.Request) {
 func (us UserService) GetValid(w http.ResponseWriter, r *http.Request) {
 	m := mtrcs.MustCurryWith(prometheus.Labels{"function": "GetValid", "method": http.MethodPost})
 
-	token, err := r.Cookie("us-authz")
+	token, err := r.Cookie("us-authn")
 	if err != nil {
 		sc(http.StatusForbidden).send(m, w, shared.MissingAuthToken, shared.MissingAuthToken.Error())
 		return

@@ -111,12 +111,25 @@ func Test_PostLogin(t *testing.T) {
 		sc       int
 	}{
 		"happy_path": {
-			a:        &mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
-			u:        &mockUserer{user: &shared.User{UUID: "uuid"}},
-			v:        &mockValidator{login: &testCookie},
+			a: &mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
+			u: &mockUserer{user: &shared.User{UUID: "uuid"}},
+			v: &mockValidator{
+				login:   &testCookie,
+				loginsc: http.StatusOK,
+			},
 			login:    shared.BasicAuth{},
 			response: &shared.User{UUID: "uuid"},
 			sc:       http.StatusOK,
+		},
+		"validation_rails": {
+			a: &mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
+			u: &mockUserer{user: &shared.User{UUID: "uuid"}},
+			v: &mockValidator{
+				login:   &testCookie,
+				loginsc: http.StatusNotAcceptable,
+			},
+			login: shared.BasicAuth{},
+			sc:    http.StatusNotAcceptable,
 		},
 		"read_fails": {
 			a:  &mockAuther{},

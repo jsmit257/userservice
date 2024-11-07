@@ -6,9 +6,9 @@ import (
 )
 
 // convenience method for getting the authorization state from a
-// client token. errors are likely cookie-related, unless the
-// server isn't responding, but the client is responsible for what
-// to do about bad input
+// client token. errors are likely cookie-related so the client
+// is responsible for what to do about bad input. unless the
+// server isn't responding
 func CheckValid(host string, port uint16, cookie *http.Cookie) (bool, error) {
 	url := fmt.Sprintf("http://%s:%d/valid", host, port)
 

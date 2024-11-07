@@ -41,8 +41,10 @@ func (us UserService) PostLogin(w http.ResponseWriter, r *http.Request) {
 		sc(http.StatusBadRequest).send(m, w, err, err.Error())
 	} else if user, err := us.Userer.GetUser(r.Context(), auth.UUID, cid); err != nil {
 		sc(http.StatusInternalServerError).send(m, w, err, err.Error())
+	} else if cookie, code := us.Validator.Login(r.Context(), user.UUID, r.RemoteAddr, cid); code != http.StatusOK {
+		sc(code).send(m, w, fmt.Errorf("failed redis login"))
 	} else {
-		http.SetCookie(w, us.Validator.Login(r.Context(), cid))
+		http.SetCookie(w, cookie)
 		sc(http.StatusOK).success(m, w, mustJSON(user))
 	}
 }

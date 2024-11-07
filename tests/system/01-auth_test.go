@@ -124,7 +124,7 @@ func Test_LoginPost(t *testing.T) {
 			if resp.StatusCode == http.StatusOK {
 				j := len(resp.Cookies())
 				for i, c := range resp.Cookies() {
-					if c.Name == "us-authz" {
+					if c.Name == "us-authn" {
 						require.NotEmpty(t, c.Value)
 						break
 					} else if i == j {

@@ -20,6 +20,7 @@ mysql-persist:
 
 .PHONY: serve-mysql
 serve-mysql:
+	docker-compose up -d redis
 	docker-compose up --build --force-recreate --remove-orphans -d serve-mysql
 
 .PHONY: system-test

@@ -80,7 +80,7 @@ func Test_Validation(t *testing.T) {
 
 	resp, err = http.DefaultClient.Do(req)
 	require.Nil(t, err, "logging out")
-	checkStatusCode(t, http.StatusFound, "logout", resp)
+	checkStatusCode(t, http.StatusAccepted, "logout", resp)
 
 	getToken(t, resp.Cookies())
 }

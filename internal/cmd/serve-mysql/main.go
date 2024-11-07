@@ -11,140 +11,147 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+	"github.com/sirupsen/logrus"
+
 	"github.com/jsmit257/userservice/internal/config"
 	data "github.com/jsmit257/userservice/internal/relational"
 	"github.com/jsmit257/userservice/internal/router"
 	valid "github.com/jsmit257/userservice/internal/validation"
-
-	log "github.com/sirupsen/logrus"
 )
 
 const APP_NAME = "serve-mysql"
 
 var traps = []os.Signal{
 	os.Interrupt,
-	syscall.SIGTERM,
 	syscall.SIGHUP,
-	syscall.SIGQUIT}
+	syscall.SIGTERM,
+	syscall.SIGQUIT,
+}
 
 func main() {
+	var err error
 	cfg := config.NewConfig()
 
-	// TODO:
-	//   - os.MkdirAll(cfg.LogDir)
-	//   - logFileBasePath := cfg.LogDir + os.PathSeparator + cfg.LogFileName
-	//   - logFilePath := logFileBasePath + os.Process.Pid
-	//   - var logWriter *io.Writer
-	//   - if logFile, err := os.OpenFile(logFilePath, os.O_CREATE+os.???, 644); err != nil {
-	//   - 	panic(fmt.Errorf("can't create logfile: '%s'", logFilePath))
-	//   - } else {
-	//   - 	logWriter = bufio.NewWriter(logFile)
-	//   - 	defer logFile.Close()
-	//   - }
-	//   - os.Link(logFilePath, logFileBasePath)
-	//   - log.SetOutput(logWriter)	log.SetOutput(os.Stderr)
-	// TODO: replace magic constant DebugLevel below
-	// logLevel, err := log.ParseLevel("LogLevel")
-	// if err != nil {
-	// 	// logLevel = log.DebugLvel  // fix it?
-	// }
-	// log.SetLevel(logLevel)
-	log.SetLevel(log.DebugLevel)
-	// log.SetReportCaller(true) // this seems expensive, maybe nice to have, check it out before enabling
-	log.SetFormatter(&log.JSONFormatter{})
+	logrus.SetLevel(logrus.DebugLevel)
+	logrus.SetFormatter(&logrus.JSONFormatter{})
+	// logrus.SetReportCaller(true) // this seems expensive, maybe nice to have, check it out before enabling
 
-	logger := log.WithField("app", APP_NAME)
+	log := logrus.WithField("app", APP_NAME)
 
-	logger.Debug("loaded config")
+	log.Info("loaded config and configured logger")
 
-	db, err := newMysql(
+	defer cleanup(log, cfg, err)
+
+	db, err := newMysql(cfg)
+	cfg.MySQLPwd = "*****" // kinda rude
+	if err != nil {
+		panic("failed to connect mysql client")
+	}
+	log.Info("configured mysql client")
+
+	sqls, err := config.NewSqls("mysql")
+	if err != nil {
+		panic("failed to connect mysql client")
+	}
+	log.Info("fetched mysql DML")
+
+	authn, err := newRedis(cfg)
+	if err != nil {
+		panic("failed to connect redis client")
+	}
+	log.Info("created redis authn store")
+
+	us := data.NewConn(db, sqls, log)
+	us.Validator = valid.NewValidator(authn, cfg)
+
+	srv := router.NewInstance(us, cfg, log)
+
+	startServer(srv, log).Wait()
+
+	log.Debug("done")
+}
+
+func cleanup(log *logrus.Entry, cfg *config.Config, err error) {
+	l := log.WithFields(logrus.Fields{"cfg": cfg}).WithError(err)
+
+	msg := recover()
+	if msg == nil {
+		return
+	}
+
+	switch text := msg.(type) {
+	case string:
+		l.Fatal(text)
+	case error:
+		l.Fatal(text.Error())
+	case interface{ String() string }:
+		l.Fatal(text.String())
+	default:
+		l.Fatalf("%v", msg)
+	}
+}
+
+func newMysql(cfg *config.Config) (*sql.DB, error) {
+	url := fmt.Sprintf("%s:%s@tcp(%s:%d)/userservice?parseTime=true",
 		cfg.MySQLUser,
 		cfg.MySQLPwd,
 		cfg.MySQLHost,
 		cfg.MySQLPort,
-		logger)
-	cfg.MySQLPwd = "*****" // kinda rude
+	)
+	db, err := sql.Open("mysql", url)
 	if err != nil {
-		logger.
-			WithFields(log.Fields{"cfg": cfg}).
-			WithError(err).
-			Fatal("failed to connect mysql client")
-		return
+		return nil, err
+	} else if err = db.Ping(); err != nil {
+		return nil, err
 	}
-
-	logger.Debug("configured mysql client")
-
-	sqls, err := config.NewSqls("mysql")
-	if err != nil {
-		logger.
-			WithFields(log.Fields{"cfg": cfg}).
-			WithError(err).
-			Fatal("failed to connect mysql client")
-	}
-
-	us := data.NewConn(db, sqls, logger)
-	us.Validator = valid.NewValidator(cfg)
-
-	srv := router.NewInstance(
-		us,
-		cfg,
-		logger)
-
-	wg := &sync.WaitGroup{}
-
-	wg.Add(1)
-	go func(srv *http.Server, wg *sync.WaitGroup) {
-		defer wg.Done()
-		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-			logger.
-				WithFields(log.Fields{"cfg": cfg}).
-				WithError(err).
-				Fatal("http server didn't start properly")
-			panic(err)
-		}
-		logger.Debug("http server shutdown complete")
-	}(srv, wg)
-
-	trap(logger)
-
-	timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := srv.Shutdown(timeout); err != nil {
-		logger.
-			WithFields(log.Fields{"cfg": cfg}).
-			WithError(err).
-			Error("error stopping server")
-	}
-
-	wg.Wait()
-
-	logger.Debug("done")
+	return db, nil
 }
 
-func trap(logger *log.Entry) {
+func newRedis(cfg *config.Config) (*redis.Client, error) {
+	url := fmt.Sprintf("redis://%s:%s@%s:%d/0",
+		cfg.RedisUser,
+		cfg.RedisPass,
+		cfg.RedisHost,
+		cfg.RedisPort)
+	opt, err := redis.ParseURL(url)
+	if err != nil {
+		return nil, err
+	}
+
+	client := redis.NewClient(opt)
+
+	_, err = client.Ping(context.Background()).Result()
+
+	return client, err
+}
+
+func startServer(srv *http.Server, log *logrus.Entry) *sync.WaitGroup {
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	defer wg.Done()
+
+	go func(srv *http.Server) {
+		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+			log.WithError(err).Fatal("http server didn't start properly")
+		}
+	}(srv)
+	log.Info("server started, waiting for traps")
+
 	trapped := make(chan os.Signal, len(traps))
 
 	signal.Notify(trapped, traps...)
 
-	logger.WithField("sig", <-trapped).Info("stopping app with signal")
-}
+	log.WithField("sig", <-trapped).Info("stopping app with signal")
 
-func newMysql(dbuser, dbpass, dbhost string, dbport uint16, logger *log.Entry) (*sql.DB, error) {
-	l := logger.WithFields(log.Fields{
-		"mysql_user":     dbuser,
-		"mysql_hostname": dbhost,
-		"mysql_port":     dbport,
-	})
-	l.Debug("starting mysql conn")
-	url := fmt.Sprintf("%s:%s@tcp(%s:%d)/userservice?parseTime=true", dbuser, dbpass, dbhost, dbport)
-	db, err := sql.Open("mysql", url)
-	if err != nil {
-		l.WithError(err).Error("failed to create mysql conn")
-		return nil, err
-	} else if err = db.Ping(); err != nil {
-		l.WithError(err).Error("failed to ping mysql conn")
-		return nil, err
+	timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(timeout); err != nil {
+		log.WithError(err).Error("error stopping server")
 	}
-	l.Info("successfully connected to mysql")
-	return db, nil
+
+	log.Debug("http server shutdown complete")
+
+	return wg
 }

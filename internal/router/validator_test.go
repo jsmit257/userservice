@@ -13,19 +13,20 @@ import (
 )
 
 type mockValidator struct {
-	login *http.Cookie
+	login   *http.Cookie
+	loginsc int
 
 	logout,
 	valid int
 }
 
 var testCookie = http.Cookie{
-	Name:     "us-authz",
+	Name:     "us-authn",
 	Path:     "/",
 	Expires:  time.Time{},
 	MaxAge:   -1,
 	HttpOnly: true,
-	Raw:      "us-authz=; Path=/; Max-Age=0; HttpOnly",
+	Raw:      "us-authn=; Path=/; Max-Age=0; HttpOnly",
 }
 
 func Test_PostLogout(t *testing.T) {
@@ -65,7 +66,7 @@ func Test_PostLogout(t *testing.T) {
 			)
 			if tc.token != "" {
 				r.AddCookie(&http.Cookie{
-					Name:    "us-authz",
+					Name:    "us-authn",
 					Value:   tc.token,
 					Expires: time.Now().UTC().Add(time.Hour),
 				})
@@ -120,7 +121,7 @@ func Test_GetValid(t *testing.T) {
 			)
 			if tc.token != "" {
 				r.AddCookie(&http.Cookie{
-					Name:    "us-authz",
+					Name:    "us-authn",
 					Value:   tc.token,
 					Expires: time.Now().UTC().Add(time.Hour),
 				})
@@ -134,8 +135,8 @@ func Test_GetValid(t *testing.T) {
 }
 
 func (mv *mockValidator) Clear(context.Context, shared.CID) {}
-func (mv *mockValidator) Login(context.Context, shared.CID) *http.Cookie {
-	return mv.login
+func (mv *mockValidator) Login(context.Context, shared.UUID, string, shared.CID) (*http.Cookie, int) {
+	return mv.login, mv.loginsc
 }
 func (mv *mockValidator) Logout(context.Context, string, shared.CID) (*http.Cookie, int) {
 	return &testCookie, mv.logout
