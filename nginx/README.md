@@ -8,6 +8,6 @@ docker-compose [--build [--remove-orphans]] [-d] us-web-test
 
 Since any API host exposes the same interface, it doesn't matter which database you use. The current defaults assume a a host named `servicetester` on port `3000`. These values should really come from the command line.
 
-All the resources for the web server, except jQuery, are in the `index.html` file, so it can serve as a reference for ajax calls and wonky redirect handling.
+All the resources for the test harness, except jQuery, are in the `index.html` file, so it can serve as a reference for ajax calls and wonky redirect handling.
 
 Could possibly add more interfaces to the server - all the services are exposed in the config already, just not trying to make a project out of a table editor/index lister. Would be neat though. Also, curiously not secure.

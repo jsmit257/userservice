@@ -2,38 +2,29 @@
 
 echo "testing integration"
 
+# the MYSQL* aren't needed, but the config requires values
+: ${US_MYSQL_HOST:=snakeoil}
+: ${US_MYSQL_PORT:=0}
+: ${US_MYSQL_USER:=snakeoil}
+: ${US_MYSQL_PASSWORD:=snakeoil}
+
 : ${US_SERVER_HOST:=localhost}
 : ${US_SERVER_PORT:=3000}
+export US_MYSQL_HOST US_MYSQL_PORT US_MYSQL_USER US_MYSQL_PASSWORD US_SERVER_HOST US_SERVER_PORT
 
-# for i in `seq 0 20`; do
-#   hc=(curl -i "${US_SERVER_HOST}:${US_SERVER_PORT}/hc")
+# are we there yet?
+if ! curl -i "${US_SERVER_HOST}:${US_SERVER_PORT}/hc" 2>/dev/null; then 
+  echo "apparently, the server didn't start"
+  docker ps | grep 'userservice'
+  exit 1
+fi
 
-#   echo -n "${hc[@]} "
-
-#   if ${hc[@]} 2>/dev/null; then 
-#     echo
-#     echo "successful healthcheck"
-#     break
-#   elif [ "$i" -eq 20 ]; then 
-#     echo "failed after 21 retries, giving up"
-#     exit 1
-#   else
-#     echo "healthcheck failed, retrying: $i"
-#   fi
-  
-#   sleep 1s
-# done
-
-cd tests && go mod vendor && go clean -testcache 
-
-# run system tests
-MYSQL_HOST="${MYSQL_HOST:-snakeoil}" \
-MYSQL_PORT="${MYSQL_PORT:-0}" \
-MYSQL_USER="${MYSQL_USER:-snakeoil}" \
-MYSQL_PASSWORD="${MYSQL_PASSWORD:-snakeoil}" \
-go test -v -race ./system/...
+cd tests \
+&& go mod vendor \
+&& go clean -testcache \
+&& go test -v -race ./system/...
 
 # scrape metrics
 curl -i "${US_SERVER_HOST}:${US_SERVER_PORT}/metrics" 2>/dev/null
 
-echo "exiting test"
+echo "exiting integration test"

@@ -23,8 +23,6 @@ func Test_Validator(t *testing.T) {
 	cfg := &config.Config{
 		AuthnTimeout: 15,
 		CookieName:   "foobar",
-		// RedisHost:    "localhost",
-		// RedisPort:    6666,
 	}
 
 	db, mock := redismock.NewClientMock()
@@ -89,8 +87,14 @@ func Test_Validator(t *testing.T) {
 	mock.ExpectHGet("token:"+valid.Value, "expires").RedisNil()
 	require.Equal(t, http.StatusForbidden, v.Valid(ctx, valid.Value, cid))
 
+	// update expiry fails
+	mock.ExpectHGet("token:"+valid.Value, "expires").SetVal(time.Now().UTC().Format(time.RFC3339))
+	mock.Regexp().ExpectHSet("token:"+valid.Value, "expires", ".*").SetErr(fmt.Errorf("some error"))
+	require.Equal(t, http.StatusInternalServerError, v.Valid(ctx, valid.Value, cid))
+
 	// happy path for valid
 	mock.ExpectHGet("token:"+valid.Value, "expires").SetVal(time.Now().UTC().Format(time.RFC3339))
+	mock.Regexp().ExpectHSet("token:"+valid.Value, "expires", ".*").SetVal(1)
 	require.Equal(t, http.StatusFound, v.Valid(ctx, valid.Value, cid))
 
 	// valid gets an error
@@ -101,6 +105,7 @@ func Test_Validator(t *testing.T) {
 
 	// get userid fails
 	mock.ExpectHGet("token:"+valid.Value, "expires").SetVal(time.Now().UTC().Format(time.RFC3339))
+	mock.Regexp().ExpectHSet("token:"+valid.Value, "expires", ".*").SetVal(1)
 	mock.ExpectHGet("token:"+valid.Value, "userid").SetErr(fmt.Errorf("some error"))
 	cookie, code = v.Logout(ctx, valid.Value, cid)
 	require.Equal(t, http.StatusInternalServerError, code, cid)
@@ -108,6 +113,7 @@ func Test_Validator(t *testing.T) {
 
 	// delete hash fails
 	mock.ExpectHGet("token:"+valid.Value, "expires").SetVal(time.Now().UTC().Format(time.RFC3339))
+	mock.Regexp().ExpectHSet("token:"+valid.Value, "expires", ".*").SetVal(1)
 	mock.ExpectHGet("token:"+valid.Value, "userid").SetVal("12345")
 	mock.ExpectHDel("token:"+valid.Value, "userid", "expires", "remote").SetErr(fmt.Errorf("some error"))
 	cookie, code = v.Logout(ctx, valid.Value, cid)
@@ -116,6 +122,7 @@ func Test_Validator(t *testing.T) {
 
 	// decrement fails
 	mock.ExpectHGet("token:"+valid.Value, "expires").SetVal(time.Now().UTC().Format(time.RFC3339))
+	mock.Regexp().ExpectHSet("token:"+valid.Value, "expires", ".*").SetVal(1)
 	mock.ExpectHGet("token:"+valid.Value, "userid").SetVal("12345")
 	mock.ExpectHDel("token:"+valid.Value, "userid", "expires", "remote").SetVal(1)
 	mock.Regexp().ExpectDecr("user:*").SetErr(fmt.Errorf("some error"))
@@ -125,6 +132,7 @@ func Test_Validator(t *testing.T) {
 
 	// happy logout
 	mock.ExpectHGet("token:"+valid.Value, "expires").SetVal(time.Now().UTC().Format(time.RFC3339))
+	mock.Regexp().ExpectHSet("token:"+valid.Value, "expires", ".*").SetVal(1)
 	mock.ExpectHGet("token:"+valid.Value, "userid").SetVal("12345")
 	mock.ExpectHDel("token:"+valid.Value, "userid", "expires", "remote").SetVal(1)
 	mock.Regexp().ExpectDecr("user:*").SetVal(0)

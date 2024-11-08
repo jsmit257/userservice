@@ -3,9 +3,7 @@ package valid
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -72,11 +70,9 @@ func NewValidator(client authnClient, cfg *config.Config) Validator {
 func (v *core) Login(ctx context.Context, userid shared.UUID, remote string, cid shared.CID) (*http.Cookie, int) {
 	key := "user:" + string(userid)
 	if count, err := v.rc.Incr(ctx, key).Result(); err != nil && err != redis.Nil {
-		fmt.Fprintf(os.Stderr, "coundn't increment: '%v'\n", err)
 		return nil, http.StatusInternalServerError
 	} else if count > 5 { // FIXME: move magic to config
 		if err = v.rc.Decr(ctx, key).Err(); err != nil {
-			fmt.Fprintf(os.Stderr, "couldn't decrement: '%v'\n", err)
 			return nil, http.StatusInternalServerError
 		}
 		return nil, http.StatusTooManyRequests
@@ -96,7 +92,6 @@ func (v *core) Login(ctx context.Context, userid shared.UUID, remote string, cid
 		Remote:  remote,
 	}.val()).Err()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "fucktard: '%v'\n", err)
 		return nil, http.StatusInternalServerError
 	}
 
@@ -120,16 +115,17 @@ func (v *core) Logout(ctx context.Context, token string, cid shared.CID) (*http.
 }
 
 func (v *core) Valid(ctx context.Context, token string, cid shared.CID) int {
-	if expires, err := v.rc.HGet(ctx, "token:"+token, "expires").Result(); err == redis.Nil {
+	key := "token:" + token
+	if expires, err := v.rc.HGet(ctx, key, "expires").Result(); err == redis.Nil {
 		return http.StatusForbidden
 	} else if err != nil {
-		fmt.Fprintf(os.Stdout, "dammit: '%s', '%v'\n", err.Error(), err)
 		return http.StatusInternalServerError
 	} else if t, err := time.Parse(time.RFC3339, expires); err != nil {
-		fmt.Fprintf(os.Stdout, "failed timestamp: '%v'\n", expires)
 		return http.StatusInternalServerError
 	} else if t.Add(v.timeout).Before(time.Now().UTC()) {
 		return http.StatusForbidden
+	} else if _, err := v.rc.HSet(ctx, key, "expires", time.Now().UTC().Add(v.timeout)).Result(); err != nil {
+		return http.StatusInternalServerError
 	}
 
 	return http.StatusFound

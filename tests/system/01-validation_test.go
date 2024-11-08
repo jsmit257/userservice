@@ -14,7 +14,7 @@ import (
 func checkStatusCode(t *testing.T, expected int, label string, resp *http.Response) []byte {
 	body, err := io.ReadAll(resp.Body)
 	require.Nil(t, err, "reading %s response", label)
-	require.Equal(t, expected, resp.StatusCode, "response: %s", label, body)
+	require.Equal(t, expected, resp.StatusCode, "response: %s is '%s'", label, body)
 	return body
 }
 
