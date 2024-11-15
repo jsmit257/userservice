@@ -6,11 +6,9 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/go-chi/chi/v5"
-
 	log "github.com/sirupsen/logrus"
 
 	"github.com/jsmit257/userservice/internal/config"
@@ -49,9 +47,12 @@ func (sc sc) success(m *prometheus.CounterVec, w http.ResponseWriter, messages .
 	sc.send(m, w, fmt.Errorf("none"), messages...)
 }
 
-func middleware(http.Handler) http.Handler {
-	return nil
-}
+// func middleware(next http.Handler) http.Handler {
+// 	return http.HandlerFunc(next.ServeHTTP)
+// 	// return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// 	// 	next.ServeHTTP(w, r)
+// 	// })
+// }
 
 func NewInstance(us *UserService, cfg *config.Config, logger *log.Entry) *http.Server {
 	r := chi.NewRouter()
@@ -75,6 +76,7 @@ func NewInstance(us *UserService, cfg *config.Config, logger *log.Entry) *http.S
 	r.Get("/auth/{username}", us.GetAuth)
 	r.Post("/auth", us.PostLogin)
 	r.Patch("/auth/{user_id}", us.PatchLogin)
+	r.Delete("/auth/{user_id}", us.DeleteLogin)
 
 	r.Post("/logout", us.PostLogout)
 	r.Get("/valid", us.GetValid)

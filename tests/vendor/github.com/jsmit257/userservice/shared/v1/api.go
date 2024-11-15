@@ -14,8 +14,9 @@ type (
 
 	Auther interface {
 		GetAuthByAttrs(context.Context, *UUID, *string, CID) (*BasicAuth, error)
-		ResetPassword(context.Context, *BasicAuth, *BasicAuth, CID) error
+		ChangePassword(context.Context, *BasicAuth, *BasicAuth, CID) error
 		Login(context.Context, *BasicAuth, CID) (*BasicAuth, error)
+		ResetPassword(context.Context, *UUID, CID) error
 	}
 
 	BasicAuther interface{}

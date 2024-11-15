@@ -192,7 +192,7 @@ func Test_PostUser(t *testing.T) {
 				postUserErr:  shared.UserNotAddedError,
 			},
 			r:  &shared.User{UUID: "1"},
-			sc: http.StatusInternalServerError,
+			sc: http.StatusConflict,
 		},
 		"user_not_found": {
 			u: &mockUserer{

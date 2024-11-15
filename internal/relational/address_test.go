@@ -90,6 +90,7 @@ func TestGetAllAddresses(t *testing.T) {
 				nil,
 				mockSqls(),
 				l,
+				testmetrics,
 			}).GetAllAddresses(context.Background(), cid)
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.addr, addr)
@@ -104,7 +105,7 @@ func TestGetAddress(t *testing.T) {
 
 	tcs := map[string]struct {
 		mockDB getMockDB
-		addr   *shared.Address
+		result *shared.Address
 		err    error
 	}{
 		"happy_path": {
@@ -115,15 +116,14 @@ func TestGetAddress(t *testing.T) {
 						AddRow(addrValues[0]...))
 				return db
 			},
-			addr: &_addr,
+			result: &_addr,
 		},
 		"query_fails": {
 			mockDB: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
 				mock.ExpectQuery("").WillReturnError(fmt.Errorf("some error"))
 				return db
 			},
-			addr: &shared.Address{},
-			err:  fmt.Errorf("some error"),
+			err: fmt.Errorf("some error"),
 		},
 	}
 
@@ -137,9 +137,10 @@ func TestGetAddress(t *testing.T) {
 				nil,
 				mockSqls(),
 				l,
+				testmetrics,
 			}).GetAddress(context.Background(), "1", cid)
 			require.Equal(t, tc.err, err)
-			require.Equal(t, tc.addr, addr)
+			require.Equal(t, tc.result, addr)
 		})
 	}
 }
@@ -152,7 +153,7 @@ func TestAddAddress(t *testing.T) {
 	tcs := map[string]struct {
 		mockDB getMockDB
 		addr   *shared.Address
-		uuid   shared.UUID
+		result shared.UUID
 		err    error
 	}{
 		"happy_path": {
@@ -160,24 +161,26 @@ func TestAddAddress(t *testing.T) {
 				mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 1))
 				return db
 			},
-			addr: &shared.Address{},
-			uuid: mockUUIDGen(),
+			addr:   &shared.Address{},
+			result: mockUUIDGen(),
 		},
 		"exec_fails": {
 			mockDB: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
 				mock.ExpectExec(".*").WillReturnError(fmt.Errorf("some error"))
 				return db
 			},
-			addr: &shared.Address{},
-			err:  fmt.Errorf("some error"),
+			addr:   &shared.Address{},
+			err:    fmt.Errorf("some error"),
+			result: mockUUIDGen(),
 		},
 		"no_insert": { // how would this happen w/o an error?
 			mockDB: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
 				mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
 				return db
 			},
-			addr: &shared.Address{},
-			err:  fmt.Errorf("address was not added"),
+			addr:   &shared.Address{},
+			err:    fmt.Errorf("address was not added"),
+			result: mockUUIDGen(),
 		},
 	}
 
@@ -186,10 +189,15 @@ func TestAddAddress(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			cid := shared.CID("TestGetAddress-" + name)
-			uuid, err := (&Conn{tc.mockDB(sqlmock.New()), mockUUIDGen, mockSqls(), l}).
-				AddAddress(context.Background(), tc.addr, cid)
+			uuid, err := (&Conn{
+				tc.mockDB(sqlmock.New()),
+				mockUUIDGen,
+				mockSqls(),
+				l,
+				testmetrics,
+			}).AddAddress(context.Background(), tc.addr, cid)
 			require.Equal(t, tc.err, err)
-			require.Equal(t, tc.uuid, uuid)
+			require.Equal(t, tc.result, uuid)
 		})
 	}
 }
@@ -239,6 +247,7 @@ func TestUpdateAddress(t *testing.T) {
 				nil,
 				mockSqls(),
 				l,
+				testmetrics,
 			}).UpdateAddress(context.Background(), tc.addr, cid))
 		})
 	}

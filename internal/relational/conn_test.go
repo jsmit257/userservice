@@ -7,13 +7,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/jsmit257/userservice/internal/config"
-	"github.com/jsmit257/userservice/shared/v1"
-
-	log "github.com/sirupsen/logrus"
-
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
+	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+
+	"github.com/jsmit257/userservice/internal/config"
+	"github.com/jsmit257/userservice/internal/metrics"
+	"github.com/jsmit257/userservice/shared/v1"
 )
 
 type (
@@ -29,6 +31,11 @@ type (
 
 var (
 	rightaboutnow = time.Now().UTC()
+	testmetrics   = metrics.DataMetrics.MustCurryWith(prometheus.Labels{
+		"app": "APP_NAME",
+		"db":  "quien sabes",
+		"pkg": "data",
+	})
 )
 
 func (v values) nil(ord ...uint) values {
@@ -49,6 +56,11 @@ func (v values) replace(r ...repl) values {
 	return result
 }
 
+func Test_NewUserService(t *testing.T) {
+	result := NewUserService(nil, nil, nil, nil)
+	require.NotNil(t, result)
+}
+
 func mockUUIDGen() shared.UUID {
 	return shared.UUID(uuid.Must(uuid.FromBytes([]byte("0123456789abcdef"))).String())
 }
@@ -65,12 +77,12 @@ func mockSqls() config.Sqls {
 	return result
 }
 
-func testLogger(_ *testing.T, fields log.Fields) *log.Entry {
-	return (&log.Logger{
+func testLogger(_ *testing.T, fields logrus.Fields) *logrus.Entry {
+	return (&logrus.Logger{
 		Out:       os.Stderr, // testWriter(t),
-		Hooks:     make(log.LevelHooks),
-		Formatter: &log.JSONFormatter{},
-		Level:     log.DebugLevel,
+		Hooks:     make(logrus.LevelHooks),
+		Formatter: &logrus.JSONFormatter{},
+		Level:     logrus.DebugLevel,
 	}).
 		WithFields(fields)
 }

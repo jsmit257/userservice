@@ -50,7 +50,7 @@ func (us *UserService) PostUser(w http.ResponseWriter, r *http.Request) {
 	} else if id, err := us.Userer.AddUser(r.Context(), &user, cid()); errors.Is(err, shared.UserExistsError) {
 		sc(http.StatusBadRequest).send(m, w, err, err.Error())
 	} else if errors.Is(err, shared.UserNotAddedError) {
-		sc(http.StatusInternalServerError).send(m, w, err)
+		sc(http.StatusConflict).send(m, w, err)
 	} else if err != nil {
 		sc(http.StatusInternalServerError).send(m, w, err)
 	} else if id == "" {

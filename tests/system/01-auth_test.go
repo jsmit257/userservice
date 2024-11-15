@@ -90,7 +90,7 @@ func Test_LoginPost(t *testing.T) {
 				Pass: "wrong!",
 			},
 			sc:   http.StatusBadRequest,
-			resp: shared.BadUserOrPassError.Error(),
+			resp: shared.PasswordsMatch.Error(),
 		},
 		"get_fails": {
 			login: &shared.BasicAuth{UUID: "users.readonly.UUID"},
@@ -165,7 +165,7 @@ func Test_LoginPatch(t *testing.T) {
 				Pass: "wrong!",
 			},
 			sc:   http.StatusBadRequest,
-			resp: shared.BadUserOrPassError.Error(),
+			resp: shared.PasswordsMatch.Error(),
 		},
 		"get_fails": {
 			old:  &shared.BasicAuth{UUID: "users.readonly.UUID"},

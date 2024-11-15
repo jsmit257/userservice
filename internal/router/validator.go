@@ -32,7 +32,9 @@ func (us UserService) GetValid(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	code := us.Validator.Valid(r.Context(), token.Value, cid())
+	cookie, code := us.Validator.Valid(r.Context(), token.Value, cid())
+
+	http.SetCookie(w, cookie)
 
 	sc(code).success(m, w)
 }

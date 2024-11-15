@@ -4,17 +4,15 @@ import (
 	"context"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/jsmit257/userservice/shared/v1"
 )
 
 var maxfailure uint8 = 3 // config value
 
 func (db *Conn) GetAuthByAttrs(ctx context.Context, id *shared.UUID, name *string, cid shared.CID) (*shared.BasicAuth, error) {
-	m := mtrcs.MustCurryWith(prometheus.Labels{"function": "GetAuthByAttrs"})
-	result := &shared.BasicAuth{}
+	done, log := db.logging("GetAuthByAttrs", id, cid)
 
+	result := &shared.BasicAuth{}
 	err := db.QueryRowContext(ctx, db.sqls["basic-auth"]["select"], id, name).Scan(
 		&result.UUID,
 		&result.Name,
@@ -25,55 +23,46 @@ func (db *Conn) GetAuthByAttrs(ctx context.Context, id *shared.UUID, name *strin
 		&result.FailureCount,
 		&result.MTime,
 		&result.CTime)
-	if err != nil {
-		return nil, trackError(cid, db.logger, m, err, err.Error())
-	}
 
-	return result, nil
+	return result, done(err, log)
 }
 
-func (db *Conn) ResetPassword(ctx context.Context, old, new *shared.BasicAuth, cid shared.CID) error {
-	_ = mtrcs.MustCurryWith(prometheus.Labels{"function": "ResetPassword"})
+func (db *Conn) ChangePassword(ctx context.Context, old, new *shared.BasicAuth, cid shared.CID) error {
+	done, log := db.logging("ChangePassword", old.UUID, cid)
 
 	auth, err := db.Login(ctx, old, cid)
 	if err != nil {
-		return err
-	} else if hash(new.Pass, auth.Salt) == auth.Pass { // do other validation
-		return shared.PasswordsMatch
+		return done(err, log)
+	} else if err = validate(auth.Name, new.Pass, auth.Pass, auth.Salt); err != nil {
+		return done(err, log)
 	}
-	db.logger.WithField("got", hash(new.Pass, auth.Salt)).WithField("want", auth.Pass).Errorf("wtf?!")
-	salt := generateSalt()
+
 	now := time.Now().UTC()
 
-	err = db.updateBasicAuth(
-		ctx,
-		&shared.BasicAuth{
-			Pass:         hash(new.Pass, salt),
-			Salt:         salt,
-			LoginSuccess: &now,
-			LoginFailure: auth.LoginFailure,
-			FailureCount: 0,
-			UUID:         old.UUID,
-		},
-		cid)
+	auth.Salt = generateSalt()
+	auth.Pass = hash(new.Pass, auth.Salt)
+	auth.LoginSuccess = &now
+	auth.FailureCount = 0
 
-	return err
+	err = db.updateBasicAuth(ctx, auth, cid)
+
+	return done(err, log)
 }
 
 func (db *Conn) Login(ctx context.Context, login *shared.BasicAuth, cid shared.CID) (*shared.BasicAuth, error) {
-	m := mtrcs.MustCurryWith(prometheus.Labels{"function": "Login"})
-	now := time.Now().UTC()
+	done, log := db.logging("Login", login.UUID, cid)
 
+	now := time.Now().UTC()
 	result, err := db.GetAuthByAttrs(ctx, &login.UUID, nil, cid)
 	if err != nil {
-		return nil, trackError(cid, db.logger, m, err, err.Error()) // FIXME: fmt.Errorf("internal server error")
+		return result, done(err, log)
 	} else if result.FailureCount > maxfailure {
-		return nil, trackError(cid, db.logger, m, shared.MaxFailedLoginError, "password_lockout")
+		err = shared.MaxFailedLoginError
 	} else if hash(login.Pass, result.Salt) != result.Pass {
-		if err := db.updateBasicAuth(
+		if err = db.updateBasicAuth(
 			ctx,
 			&shared.BasicAuth{
-				UUID:         login.UUID,
+				UUID:         result.UUID,
 				Pass:         result.Pass,
 				Salt:         result.Salt,
 				LoginSuccess: result.LoginSuccess,
@@ -81,32 +70,58 @@ func (db *Conn) Login(ctx context.Context, login *shared.BasicAuth, cid shared.C
 				FailureCount: result.FailureCount + 1,
 			},
 			cid,
-		); err != nil {
-			return nil, trackError(cid, db.logger, m, err, err.Error())
+		); err == nil {
+			err = shared.PasswordsMatch
 		}
-		return nil, trackError(cid, db.logger, m, shared.BadUserOrPassError, "bad_password")
-	} else if err := db.updateBasicAuth(
+	} else if err = db.updateBasicAuth(
 		ctx,
 		&shared.BasicAuth{
-			UUID:         login.UUID,
+			UUID:         result.UUID,
 			Pass:         result.Pass,
 			Salt:         result.Salt,
 			LoginSuccess: &now,
 			LoginFailure: result.LoginFailure,
-			FailureCount: result.FailureCount,
+			FailureCount: 0,
 		},
 		cid,
-	); err != nil {
-		return nil, err
-	} else {
+	); err == nil {
 		result.LoginSuccess = &now
-		m.WithLabelValues("none").Inc()
 	}
 
-	return result, err
+	return result, done(err, log)
 }
 
-func (db *Conn) updateBasicAuth(ctx context.Context, login *shared.BasicAuth, _ shared.CID) error {
+func (db *Conn) ResetPassword(ctx context.Context, id *shared.UUID, cid shared.CID) error {
+	done, log := db.logging("ResetPassword", id, cid)
+
+	auth, err := db.GetAuthByAttrs(ctx, id, nil, cid)
+	if err != nil {
+		return done(err, log)
+	}
+
+	// // use contact info to send a reset link; send it where?? need to add
+	// // more to the reset request; means maybe including those fields in
+	// // the auth object
+	// user, err := db.GetUser(ctx, *id, cid)
+	// if err != nil {
+	// 	return done(err, log)
+	// }
+
+	now := time.Now().UTC()
+
+	auth.Pass = ""
+	auth.Salt = ""
+	auth.LoginSuccess = &now
+	auth.FailureCount = 0
+
+	err = db.updateBasicAuth(ctx, auth, cid)
+
+	return done(err, log)
+}
+
+func (db *Conn) updateBasicAuth(ctx context.Context, login *shared.BasicAuth, cid shared.CID) error {
+	done, log := db.logging("Login", nil, cid)
+
 	result, err := db.ExecContext(ctx, db.sqls["basic-auth"]["update"],
 		login.Pass,
 		login.Salt,
@@ -114,13 +129,24 @@ func (db *Conn) updateBasicAuth(ctx context.Context, login *shared.BasicAuth, _ 
 		login.LoginFailure,
 		login.FailureCount,
 		login.UUID)
-	if err != nil {
-		return err
-	} else if updateCount, err := result.RowsAffected(); err != nil {
-		return err
-	} else if updateCount != 1 {
-		return shared.UserNotUpdatedError
+
+	if err == nil {
+		var rows int64
+		if rows, err = result.RowsAffected(); err == nil && rows != 1 {
+			err = shared.UserNotUpdatedError
+		}
 	}
 
+	return done(err, log)
+}
+
+func validate(username, newpass, oldpass, oldsalt string) error {
+	if len(newpass) < 8 {
+		return shared.BadUserOrPassError
+	} else if newpass == username {
+		return shared.PasswordsMatch
+	} else if hash(newpass, oldsalt) == oldpass {
+		return shared.PasswordsMatch
+	}
 	return nil
 }

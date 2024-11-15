@@ -58,7 +58,19 @@ func (us UserService) PatchLogin(w http.ResponseWriter, r *http.Request) {
 		sc(http.StatusBadRequest).send(m, w, err)
 	} else if err = json.Unmarshal(body, &login); err != nil {
 		sc(http.StatusBadRequest).send(m, w, err)
-	} else if err := us.Auther.ResetPassword(r.Context(), login.Old, login.New, cid()); err != nil {
+	} else if err := us.Auther.ChangePassword(r.Context(), login.Old, login.New, cid()); err != nil {
+		sc(http.StatusBadRequest).send(m, w, err, err.Error())
+	} else {
+		sc(http.StatusNoContent).success(m, w)
+	}
+}
+
+func (us UserService) DeleteLogin(w http.ResponseWriter, r *http.Request) {
+	m := mtrcs.MustCurryWith(prometheus.Labels{"function": "DeleteLogin", "method": http.MethodDelete})
+
+	if id := shared.UUID(chi.URLParam(r, "user_id")); id == "" {
+		sc(http.StatusBadRequest).send(m, w, fmt.Errorf("missing credentials"), "missing parameter")
+	} else if err := us.Auther.ResetPassword(r.Context(), &id, cid()); err != nil {
 		sc(http.StatusBadRequest).send(m, w, err, err.Error())
 	} else {
 		sc(http.StatusNoContent).success(m, w)

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	sharedv1 "github.com/jsmit257/userservice/shared/v1"
+	"github.com/jsmit257/userservice/shared/v1"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	_con = sharedv1.Contact{
+	_con = shared.Contact{
 		FirstName: "firstname",
 		LastName:  "lastname",
 		MTime:     rightaboutnow,
@@ -46,7 +46,7 @@ func TestGetContact(t *testing.T) {
 
 	tcs := map[string]struct {
 		mockDB getMockDB
-		result *sharedv1.Contact
+		result *shared.Contact
 		err    error
 	}{
 		"happy_path": {
@@ -65,7 +65,7 @@ func TestGetContact(t *testing.T) {
 						AddRow(addrValues[0]...))
 				return db
 			},
-			result: func(c sharedv1.Contact) *sharedv1.Contact {
+			result: func(c shared.Contact) *shared.Contact {
 				c.BillTo = &_addr
 				c.ShipTo = &_addr
 
@@ -84,7 +84,7 @@ func TestGetContact(t *testing.T) {
 						AddRow(addrValues[0]...))
 				return db
 			},
-			result: func(c sharedv1.Contact) *sharedv1.Contact {
+			result: func(c shared.Contact) *shared.Contact {
 				c.ShipTo = &_addr
 
 				return &c
@@ -102,7 +102,7 @@ func TestGetContact(t *testing.T) {
 						AddRow(addrValues[0]...))
 				return db
 			},
-			result: func(c sharedv1.Contact) *sharedv1.Contact {
+			result: func(c shared.Contact) *shared.Contact {
 				c.BillTo = &_addr
 
 				return &c
@@ -117,22 +117,20 @@ func TestGetContact(t *testing.T) {
 				mock.ExpectQuery("").WillReturnError(fmt.Errorf("some error"))
 				return db
 			},
-			err: fmt.Errorf("some error"),
+			err:    fmt.Errorf("some error"),
+			result: &_con,
 		},
 		"selectshipto_fails": {
 			mockDB: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
 				mock.ExpectQuery("").
 					WillReturnRows(sqlmock.
 						NewRows(conFields).
-						AddRow(conValues...))
-				mock.ExpectQuery("").
-					WillReturnRows(sqlmock.
-						NewRows(addrFields).
-						AddRow(addrValues[0]...))
+						AddRow(conValues.replace(repl{2, nil})...))
 				mock.ExpectQuery("").WillReturnError(fmt.Errorf("some error"))
 				return db
 			},
-			err: fmt.Errorf("some error"),
+			err:    fmt.Errorf("some error"),
+			result: &_con,
 		},
 		"contact_fails": {
 			mockDB: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
@@ -152,7 +150,8 @@ func TestGetContact(t *testing.T) {
 				nil,
 				mockSqls(),
 				l,
-			}).getContact(context.Background(), "1", sharedv1.CID("TestGetContact-"+name))
+				testmetrics,
+			}).getContact(context.Background(), "1", shared.CID("TestGetContact-"+name))
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.result, contact)
 		})
@@ -166,9 +165,9 @@ func TestAddContact(t *testing.T) {
 
 	tcs := map[string]struct {
 		mockDB  getMockDB
-		userid  sharedv1.UUID
-		contact sharedv1.Contact
-		result  *sharedv1.Contact
+		userid  shared.UUID
+		contact shared.Contact
+		result  *shared.Contact
 		err     error
 	}{
 		"happy_path": {
@@ -177,8 +176,8 @@ func TestAddContact(t *testing.T) {
 				return db
 			},
 			userid:  "1",
-			contact: sharedv1.Contact{},
-			result: &sharedv1.Contact{
+			contact: shared.Contact{},
+			result: &shared.Contact{
 				MTime: rightaboutnow,
 				CTime: rightaboutnow,
 			},
@@ -187,7 +186,7 @@ func TestAddContact(t *testing.T) {
 			mockDB: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
 				return db
 			},
-			contact: sharedv1.Contact{},
+			contact: shared.Contact{},
 			err:     fmt.Errorf("contacts require a valid user"),
 		},
 		"exec_fails": {
@@ -196,7 +195,7 @@ func TestAddContact(t *testing.T) {
 				return db
 			},
 			userid:  "1",
-			contact: sharedv1.Contact{},
+			contact: shared.Contact{},
 			err:     fmt.Errorf("some error"),
 		},
 		"no_update": {
@@ -205,7 +204,7 @@ func TestAddContact(t *testing.T) {
 				return db
 			},
 			userid:  "1",
-			contact: sharedv1.Contact{},
+			contact: shared.Contact{},
 			err:     fmt.Errorf("contact was not inserted: '1'"),
 		},
 	}
@@ -219,7 +218,8 @@ func TestAddContact(t *testing.T) {
 				mockUUIDGen,
 				mockSqls(),
 				l,
-			}).addContact(context.Background(), tc.userid, tc.contact, sharedv1.CID("TestAddContact-"+name))
+				testmetrics,
+			}).addContact(context.Background(), tc.userid, tc.contact, shared.CID("TestAddContact-"+name))
 			require.Equal(t, tc.err, err)
 			// require.Equal(t, tc.result, result) // there's no way to match mtime/ctime
 		})
@@ -233,8 +233,8 @@ func TestUpdateContact(t *testing.T) {
 
 	tcs := map[string]struct {
 		mockDB  getMockDB
-		userid  sharedv1.UUID
-		contact *sharedv1.Contact
+		userid  shared.UUID
+		contact *shared.Contact
 		err     error
 	}{
 		"happy_path": {
@@ -242,14 +242,14 @@ func TestUpdateContact(t *testing.T) {
 				mock.ExpectExec("").WillReturnResult(sqlmock.NewResult(0, 1))
 				return db
 			},
-			contact: &sharedv1.Contact{},
+			contact: &shared.Contact{},
 		},
 		"exec_fails": {
 			mockDB: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
 				mock.ExpectExec("").WillReturnError(fmt.Errorf("some error"))
 				return db
 			},
-			contact: &sharedv1.Contact{},
+			contact: &shared.Contact{},
 			err:     fmt.Errorf("some error"),
 		},
 		"update_fails": {
@@ -258,7 +258,7 @@ func TestUpdateContact(t *testing.T) {
 				return db
 			},
 			userid:  "update fails",
-			contact: &sharedv1.Contact{},
+			contact: &shared.Contact{},
 			err:     fmt.Errorf("contact was not updated: 'update fails'"),
 		},
 	}
@@ -272,7 +272,8 @@ func TestUpdateContact(t *testing.T) {
 				nil,
 				mockSqls(),
 				l,
-			}).UpdateContact(context.Background(), tc.userid, tc.contact, sharedv1.CID("TestUpdateContact-"+name)))
+				testmetrics,
+			}).UpdateContact(context.Background(), tc.userid, tc.contact, shared.CID("TestUpdateContact-"+name)))
 		})
 	}
 }

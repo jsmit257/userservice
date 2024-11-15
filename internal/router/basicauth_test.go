@@ -23,6 +23,8 @@ type mockAuther struct {
 	login    *shared.BasicAuth
 	loginErr error
 
+	change error
+
 	reset error
 }
 
@@ -75,9 +77,9 @@ func Test_GetAuth(t *testing.T) {
 			t.Parallel()
 
 			us := &UserService{Auther: tc.u}
-			w := httptest.NewRecorder()
 			rctx := chi.NewRouteContext()
 			rctx.URLParams = chi.RouteParams{Keys: []string{"username"}, Values: []string{tc.username}}
+			w := httptest.NewRecorder()
 			r, _ := http.NewRequestWithContext(
 				context.WithValue(
 					context.Background(),
@@ -218,8 +220,8 @@ func Test_PatchLogin(t *testing.T) {
 			a:  &mockAuther{getErr: fmt.Errorf("some error")},
 			sc: http.StatusBadRequest,
 		},
-		"reset_fails": {
-			a:  &mockAuther{reset: fmt.Errorf("some error")},
+		"change_fails": {
+			a:  &mockAuther{change: fmt.Errorf("some error")},
 			sc: http.StatusBadRequest,
 		},
 	}
@@ -262,6 +264,60 @@ func Test_PatchLogin(t *testing.T) {
 	}
 }
 
+func Test_DeleteLogin(t *testing.T) {
+	t.Parallel()
+
+	tcs := map[string]struct {
+		a     *mockAuther
+		login shared.BasicAuth
+		sc    int
+	}{
+		"happy_path": {
+			a:     &mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
+			login: shared.BasicAuth{UUID: "uuid"},
+			sc:    http.StatusNoContent,
+		},
+		"read_fails": {
+			a:  &mockAuther{},
+			sc: http.StatusBadRequest,
+		},
+		"unmarshal_fails": {
+			a:  &mockAuther{getErr: fmt.Errorf("some error")},
+			sc: http.StatusBadRequest,
+		},
+		"reset_fails": {
+			a:  &mockAuther{reset: fmt.Errorf("some error")},
+			sc: http.StatusBadRequest,
+		},
+	}
+	for name, tc := range tcs {
+		name, tc := name, tc
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			us := &UserService{Auther: tc.a}
+
+			rctx := chi.NewRouteContext()
+			rctx.URLParams = chi.RouteParams{Keys: []string{"user_id"}, Values: []string{string(tc.login.UUID)}}
+			w := httptest.NewRecorder()
+			r, _ := http.NewRequestWithContext(
+				context.WithValue(
+					context.Background(),
+					chi.RouteCtxKey,
+					rctx),
+				http.MethodGet,
+				"tc.url",
+				nil,
+			)
+
+			us.DeleteLogin(w, r)
+
+			require.Equal(t, tc.sc, w.Code)
+		})
+	}
+}
+
 func authToBody(a *shared.BasicAuth) string {
 	result, _ := json.Marshal(a)
 	return string(result)
@@ -270,9 +326,12 @@ func authToBody(a *shared.BasicAuth) string {
 func (ma *mockAuther) GetAuthByAttrs(context.Context, *shared.UUID, *string, shared.CID) (*shared.BasicAuth, error) {
 	return ma.get, ma.getErr
 }
-func (ma *mockAuther) ResetPassword(context.Context, *shared.BasicAuth, *shared.BasicAuth, shared.CID) error {
-	return ma.reset
+func (ma *mockAuther) ChangePassword(context.Context, *shared.BasicAuth, *shared.BasicAuth, shared.CID) error {
+	return ma.change
 }
 func (ma *mockAuther) Login(context.Context, *shared.BasicAuth, shared.CID) (*shared.BasicAuth, error) {
 	return ma.login, ma.loginErr
+}
+func (ma *mockAuther) ResetPassword(context.Context, *shared.UUID, shared.CID) error {
+	return ma.reset
 }

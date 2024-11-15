@@ -53,23 +53,19 @@
           url: `/valid`,
           method: 'GET',
           statusCode: {
-            302: _ => $(e.currentTarget).addClass('ok').removeClass('notok'),
-            403: _ => $(e.currentTarget).addClass('notok').removeClass('ok'),
+            302: _ => alert('valid'), //$(e.currentTarget).addClass('ok').removeClass('notok'),
+            403: _ => alert('not valid'), //$(e.currentTarget).addClass('notok').removeClass('ok'),
           },
         })
       })
-      .on('click', '>.logout>.send', e => {
-        let $dt = $(e.delegateTarget)
-
-        $.ajax({
-          url: '/logout',
-          method: 'POST',
-          statusCode: {
-            302: _ => $(e.currentTarget).addClass('ok').removeClass('notok'),
-            403: _ => $(e.currentTarget).addClass('notok').removeClass('ok'),
-          },
-        })
-      })
+      .on('click', '>.logout>.send', e => $.ajax({
+        url: '/logout',
+        method: 'POST',
+        statusCode: {
+          202: _ => alert('logged out'), // $(e.currentTarget).addClass('ok').removeClass('notok'),
+          403: _ => alert('logout failed'), //$(e.currentTarget).addClass('notok').removeClass('ok'),
+        },
+      }))
       .on('init', '>.item>.list.reset', e => $(e.currentTarget)
         .parent()
         .addClass('unavailable'))
@@ -118,7 +114,8 @@
           },
           error: console.log,
         })
-      }))
+      })
+      .find('>.username>input').focus())
   </script>
 
   <style type="text/css">
@@ -126,10 +123,6 @@
       background-color: #3f5454;
       color: aliceblue;
       line-height: 200%;
-    }
-
-    div {
-      position: relative;
     }
 
     input {
@@ -153,10 +146,6 @@
       float: left;
     }
 
-    .item>.list {
-      margin-left: 2em;
-    }
-
     .item>.label {
       float: left;
       padding-right: .5em;
@@ -169,7 +158,11 @@
       width: 15em;
     }
 
-    .send {
+    .item>.list {
+      margin-left: 2em;
+    }
+
+    .item>.send {
       background-color: transparent;
       border-color: aliceblue;
       border-radius: .33em;
@@ -191,12 +184,12 @@
       color: red;
     }
 
-    .idrequired,
-    .unavailable {
+    .item.idrequired,
+    .item.unavailable {
       display: none;
     }
 
-    .login[id] .idrequired {
+    .login[id] .item.idrequired {
       display: block;
     }
 

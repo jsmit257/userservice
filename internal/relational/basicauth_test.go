@@ -25,7 +25,17 @@ var (
 		MTime:        rightaboutnow,
 		CTime:        rightaboutnow,
 	}
-	basicFields = row{"uuid", "name", "pass", "salt", "success", "failure", "count", "mtime", "ctime"}
+	basicFields = row{
+		"uuid",
+		"name",
+		"pass",
+		"salt",
+		"success",
+		"failure",
+		"count",
+		"mtime",
+		"ctime",
+	}
 	basicValues = values{
 		_basic.UUID,
 		_basic.Name,
@@ -90,6 +100,7 @@ func Test_GetAuthByAttrs(t *testing.T) {
 				nil,
 				mockSqls(),
 				l,
+				testmetrics,
 			}).GetAuthByAttrs(context.Background(), tc.id, tc.name, shared.CID("Test_GetAuthByAttrs-"+name))
 
 			require.Equal(t, tc.err, err)
@@ -97,7 +108,7 @@ func Test_GetAuthByAttrs(t *testing.T) {
 	}
 }
 
-func Test_ResetPassword(t *testing.T) {
+func Test_ChangePassword(t *testing.T) {
 	t.Parallel()
 
 	l := testLogger(t, log.Fields{"app": "basicauth_test.go", "test": "Test_ResetPassword"})
@@ -119,7 +130,35 @@ func Test_ResetPassword(t *testing.T) {
 				return db
 			},
 			old: shared.BasicAuth{Pass: "snakeoil"},
-			new: shared.BasicAuth{Pass: "whiskey"},
+			new: shared.BasicAuth{Pass: "whiskeytango"},
+		},
+		"too_short": {
+			db: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
+				mock.ExpectQuery("").
+					WillReturnRows(sqlmock.
+						NewRows(basicFields).
+						AddRow(basicValues...))
+				mock.ExpectExec("").WillReturnResult(sqlmock.NewResult(0, 1))
+
+				return db
+			},
+			old: shared.BasicAuth{Pass: "snakeoil"},
+			new: shared.BasicAuth{Pass: "shorty"},
+			err: shared.BadUserOrPassError,
+		},
+		"vanity": {
+			db: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
+				mock.ExpectQuery("").
+					WillReturnRows(sqlmock.
+						NewRows(basicFields).
+						AddRow(basicValues.replace(repl{1, "anaconda"})...))
+				mock.ExpectExec("").WillReturnResult(sqlmock.NewResult(0, 1))
+
+				return db
+			},
+			old: shared.BasicAuth{Pass: "snakeoil"},
+			new: shared.BasicAuth{Pass: "anaconda"},
+			err: shared.PasswordsMatch,
 		},
 		"login_fails": {
 			db: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
@@ -155,7 +194,8 @@ func Test_ResetPassword(t *testing.T) {
 				nil,
 				mockSqls(),
 				l,
-			}).ResetPassword(context.Background(), &tc.old, &tc.new, shared.CID("Test_ResetPassword-"+name))
+				testmetrics,
+			}).ChangePassword(context.Background(), &tc.old, &tc.new, shared.CID("Test_ResetPassword-"+name))
 
 			require.Equal(t, tc.err, err)
 		})
@@ -222,7 +262,7 @@ func Test_Login(t *testing.T) {
 
 				return db
 			},
-			err: shared.BadUserOrPassError,
+			err: shared.PasswordsMatch,
 		},
 		"bad_password_exec_fails": {
 			db: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
@@ -275,7 +315,105 @@ func Test_Login(t *testing.T) {
 				nil,
 				mockSqls(),
 				l,
+				testmetrics,
 			}).Login(context.Background(), &tc.login, shared.CID("Test_Login-"+name))
+
+			require.Equal(t, tc.err, err)
+		})
+	}
+}
+
+func Test_ResetPassword(t *testing.T) {
+	t.Parallel()
+
+	l := testLogger(t, log.Fields{"app": "basicauth_test.go", "test": "Test_ResetPassword"})
+
+	tcs := map[string]struct {
+		db    getMockDB
+		login shared.BasicAuth
+		err   error
+	}{
+		"happy_path": {
+			db: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
+				mock.ExpectQuery("").
+					WillReturnRows(sqlmock.
+						NewRows(basicFields).
+						AddRow(basicValues...))
+				mock.ExpectExec("").WillReturnResult(sqlmock.NewResult(0, 1))
+
+				return db
+			},
+			login: shared.BasicAuth{UUID: "1", Pass: "snakeoil"},
+		},
+		"no_rows_found": {
+			db: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
+				mock.ExpectQuery("").
+					WillReturnRows(sqlmock.
+						NewRows(basicFields))
+				return db
+			},
+			err: sql.ErrNoRows,
+		},
+		"select_fails": {
+			db: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
+				mock.ExpectQuery("").WillReturnError(fmt.Errorf("some error"))
+				return db
+			},
+			err: fmt.Errorf("some error"),
+		},
+		"bad_password_exec_fails": {
+			db: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
+				mock.ExpectQuery("").
+					WillReturnRows(sqlmock.
+						NewRows(basicFields).
+						AddRow(basicValues...))
+				mock.ExpectExec("").WillReturnError(fmt.Errorf("some error"))
+
+				return db
+			},
+			err: fmt.Errorf("some error"),
+		},
+		"update_fails": {
+			db: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
+				mock.ExpectQuery("").
+					WillReturnRows(sqlmock.
+						NewRows(basicFields).
+						AddRow(basicValues...))
+				mock.ExpectExec("").WillReturnError(fmt.Errorf("some error"))
+
+				return db
+			},
+			login: shared.BasicAuth{Pass: "snakeoil"},
+			err:   fmt.Errorf("some error"),
+		},
+		"update_no_rows": {
+			db: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
+				mock.ExpectQuery("").
+					WillReturnRows(sqlmock.
+						NewRows(basicFields).
+						AddRow(basicValues...))
+				mock.ExpectExec("").WillReturnResult(sqlmock.NewResult(0, 0))
+
+				return db
+			},
+			login: shared.BasicAuth{Pass: "snakeoil"},
+			err:   shared.UserNotUpdatedError,
+		},
+	}
+
+	for name, tc := range tcs {
+		name, tc := name, tc
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			err := (&Conn{
+				tc.db(sqlmock.New()),
+				nil,
+				mockSqls(),
+				l,
+				testmetrics,
+			}).ResetPassword(context.Background(), &tc.login.UUID, shared.CID("Test_ResetPassword-"+name))
 
 			require.Equal(t, tc.err, err)
 		})
@@ -324,6 +462,7 @@ func Test_updateBasicAuth(t *testing.T) {
 				nil,
 				mockSqls(),
 				l,
+				testmetrics,
 			}).updateBasicAuth(context.Background(), &tc.login, shared.CID("Test_updateBasicAuth-"+name))
 
 			require.Equal(t, tc.err, err)

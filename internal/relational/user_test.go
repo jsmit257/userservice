@@ -72,6 +72,7 @@ func TestGetAllUsers(t *testing.T) {
 				nil,
 				mockSqls(),
 				l,
+				testmetrics,
 			}).GetAllUsers(context.Background(), cid)
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.result, result)
@@ -86,7 +87,7 @@ func TestGetUser(t *testing.T) {
 
 	tcs := map[string]struct {
 		mockDB getMockDB
-		user   *shared.User
+		result *shared.User
 		err    error
 	}{
 		"happy_path": {
@@ -101,7 +102,7 @@ func TestGetUser(t *testing.T) {
 						AddRow(conValues.nil(2, 3)...))
 				return db
 			},
-			user: func(u shared.User) *shared.User {
+			result: func(u shared.User) *shared.User {
 				u.Contact = &shared.Contact{
 					FirstName: _con.FirstName,
 					LastName:  _con.LastName,
@@ -118,11 +119,9 @@ func TestGetUser(t *testing.T) {
 					WillReturnRows(sqlmock.
 						NewRows(userFields).
 						AddRow(userValues...))
-				mock.ExpectQuery("").
-					WillReturnError(fmt.Errorf("some error"))
+				mock.ExpectQuery("").WillReturnError(fmt.Errorf("some error"))
 				return db
 			},
-			// user: &_user,
 			err: fmt.Errorf("some error"),
 		},
 		"happy_path_no_contact": {
@@ -136,14 +135,13 @@ func TestGetUser(t *testing.T) {
 						NewRows(conFields))
 				return db
 			},
-			user: &_user,
+			result: &_user,
 		},
 		"query_fails": {
 			mockDB: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
 				mock.ExpectQuery("").WillReturnError(fmt.Errorf("some error"))
 				return db
 			},
-			// user: &shared.User{},
 			err: fmt.Errorf("some error"),
 		},
 	}
@@ -152,17 +150,15 @@ func TestGetUser(t *testing.T) {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			// if name != "happy_path" {
-			// 	return
-			// }
 			user, err := (&Conn{
 				tc.mockDB(sqlmock.New()),
 				nil,
 				mockSqls(),
 				l,
+				testmetrics,
 			}).GetUser(context.Background(), "1", shared.CID("TestGetUser-"+name))
 			require.Equal(t, tc.err, err)
-			require.Equal(t, tc.user, user)
+			require.Equal(t, tc.result, user)
 		})
 	}
 }
@@ -197,8 +193,9 @@ func TestAddUser(t *testing.T) {
 
 				return db
 			},
-			user: &shared.User{Name: "username"},
-			err:  fmt.Errorf("recursion error"),
+			user:   &shared.User{Name: "username"},
+			err:    fmt.Errorf("recursion error"),
+			result: mockUUIDGen(),
 		},
 		"primary_key_recovers": {
 			mockDB: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
@@ -223,24 +220,27 @@ func TestAddUser(t *testing.T) {
 				})
 				return db
 			},
-			user: &shared.User{Name: "username"},
-			err:  shared.UserExistsError,
+			user:   &shared.User{Name: "username"},
+			err:    shared.UserExistsError,
+			result: mockUUIDGen(),
 		},
 		"exec_fails": {
 			mockDB: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
 				mock.ExpectExec(".*").WillReturnError(fmt.Errorf("some error"))
 				return db
 			},
-			user: &shared.User{Name: "username"},
-			err:  fmt.Errorf("some error"),
+			user:   &shared.User{Name: "username"},
+			err:    fmt.Errorf("some error"),
+			result: mockUUIDGen(),
 		},
 		"no_insert": { // how would this happen w/o an error?
 			mockDB: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
 				mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
 				return db
 			},
-			user: &shared.User{Name: "username"},
-			err:  shared.UserNotAddedError,
+			user:   &shared.User{Name: "username"},
+			err:    shared.UserNotAddedError,
+			result: mockUUIDGen(),
 		},
 	}
 	for name, tc := range tcs {
@@ -252,6 +252,7 @@ func TestAddUser(t *testing.T) {
 				mockUUIDGen,
 				mockSqls(),
 				l,
+				testmetrics,
 			}).AddUser(context.Background(), tc.user, shared.CID("TestAddUser-"+name))
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.result, result)
@@ -280,7 +281,7 @@ func TestUpdateUser(t *testing.T) {
 				return db
 			},
 			user: &shared.User{UUID: "1", Name: "exec fails", MTime: rightaboutnow},
-			err:  fmt.Errorf("couldn't update user: %w", fmt.Errorf("exec fails")),
+			err:  fmt.Errorf("exec fails"),
 		},
 		"query_fails": {
 			mockDB: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
@@ -300,6 +301,7 @@ func TestUpdateUser(t *testing.T) {
 				nil,
 				mockSqls(),
 				l,
+				testmetrics,
 			}).UpdateUser(context.Background(), tc.user, shared.CID("TestUpdateUser-"+name)))
 		})
 	}
@@ -343,6 +345,7 @@ func TestDeleteUser(t *testing.T) {
 				nil,
 				mockSqls(),
 				l,
+				testmetrics,
 			}).DeleteUser(context.Background(), "1", shared.CID("TestDeleteUser-"+name)))
 		})
 	}
@@ -389,6 +392,7 @@ func TestCreateContact(t *testing.T) {
 				mockUUIDGen,
 				mockSqls(),
 				l,
+				testmetrics,
 			}).CreateContact(context.Background(), &tc.user, tc.contact, shared.CID("TestCreateContact-"+name))
 
 			if result != nil {

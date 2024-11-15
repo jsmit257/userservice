@@ -16,6 +16,7 @@ type Config struct {
 	RedisPort int16  `envconfig:"REDIS_PORT" default:"6379" json:"redis_port"`
 
 	AuthnTimeout int64  `envconfig:"AUTHN_TIMEOUT" default:"15" json:"authn_timeout"`
+	MaxLogins    int    `envconfig:"MAX_LOGINS" default:"5" json:"max_logins"`
 	CookieName   string `envconfig:"AUTHN_COOKIE" default:"us-authn" json:"authn_cookie"`
 
 	ServerHost string `envconfig:"HTTP_HOST" default:"0.0.0.0" json:"server_host"`

@@ -6,28 +6,14 @@ import (
 	"time"
 
 	sharedv1 "github.com/jsmit257/userservice/shared/v1"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
-type userVec struct{ *prometheus.CounterVec }
-
-func (u userVec) labels(l prometheus.Labels) userVec {
-	u.CounterVec = u.CounterVec.MustCurryWith(l)
-	return u
-}
-
-func (u userVec) done(err error) {
-	if err == nil {
-		u.WithLabelValues("none").Inc()
-	} else {
-		u.WithLabelValues(err.Error()).Inc()
-	}
-}
 func (db *Conn) GetAllAddresses(ctx context.Context, cid sharedv1.CID) ([]sharedv1.Address, error) {
+	done, log := db.logging("GetAllAddresses", nil, cid)
 
 	rows, err := db.QueryContext(ctx, db.sqls["address"]["select-all"])
 	if err != nil {
-		return nil, err
+		return nil, done(err, log)
 	}
 
 	result := []sharedv1.Address{}
@@ -44,19 +30,18 @@ func (db *Conn) GetAllAddresses(ctx context.Context, cid sharedv1.CID) ([]shared
 			&row.MTime,
 			&row.CTime,
 		); err != nil {
-			return nil, err
+			break
 		}
 		result = append(result, row)
 	}
 
-	return result, nil
+	return result, done(err, log)
 }
 
 func (db *Conn) GetAddress(ctx context.Context, id sharedv1.UUID, cid sharedv1.CID) (*sharedv1.Address, error) {
+	done, log := db.logging("GetAddress", id, cid)
+
 	result := &sharedv1.Address{}
-
-	m := userVec{mtrcs}.labels(prometheus.Labels{"function": "GetAddress"})
-
 	err := db.
 		QueryRowContext(ctx, db.sqls["address"]["select"], id).
 		Scan(
@@ -70,15 +55,19 @@ func (db *Conn) GetAddress(ctx context.Context, id sharedv1.UUID, cid sharedv1.C
 			&result.MTime,
 			&result.CTime)
 
-	m.done(err)
+	if err != nil {
+		result = nil
+	}
 
-	return result, err
+	return result, done(err, log)
 }
 
 func (db *Conn) AddAddress(ctx context.Context, addr *sharedv1.Address, cid sharedv1.CID) (sharedv1.UUID, error) {
+	done, log := db.logging("AddAddress", addr, cid)
+
 	now := time.Now().UTC()
 	addr.UUID, addr.MTime, addr.CTime =
-		db.generateUUID(),
+		db.uuidgen(),
 		now,
 		now
 
@@ -92,17 +81,20 @@ func (db *Conn) AddAddress(ctx context.Context, addr *sharedv1.Address, cid shar
 		addr.Zip,
 		addr.MTime,
 		addr.CTime)
-	if err != nil {
-		return "", err
-	} else if rows, err := result.RowsAffected(); err != nil {
-		return "", err
-	} else if rows != 1 {
-		return "", fmt.Errorf("address was not added")
+
+	if err == nil {
+		var rows int64
+		if rows, err = result.RowsAffected(); err == nil && rows != 1 {
+			err = fmt.Errorf("address was not added")
+		}
 	}
-	return addr.UUID, nil
+
+	return addr.UUID, done(err, log)
 }
 
 func (db *Conn) UpdateAddress(ctx context.Context, addr *sharedv1.Address, cid sharedv1.CID) error {
+	done, log := db.logging("UpdateAddress", addr, cid)
+
 	now := time.Now().UTC()
 
 	result, err := db.ExecContext(ctx, db.sqls["address"]["update"],
@@ -114,12 +106,13 @@ func (db *Conn) UpdateAddress(ctx context.Context, addr *sharedv1.Address, cid s
 		addr.Zip,
 		now,
 		addr.UUID)
-	if err != nil {
-		return err
-	} else if rows, err := result.RowsAffected(); err != nil {
-		return err
-	} else if rows != 1 {
-		return sharedv1.AddressNotUpdatedError
+
+	var rows int64
+	if err == nil {
+		if rows, err = result.RowsAffected(); err == nil && rows != 1 {
+			err = sharedv1.AddressNotUpdatedError
+		}
 	}
-	return nil
+
+	return done(err, log)
 }

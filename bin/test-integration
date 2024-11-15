@@ -2,7 +2,7 @@
 
 echo "testing integration"
 
-# the MYSQL* aren't needed, but the config requires values
+# the MYSQL* aren't used, but the config requires non-empty
 : ${US_MYSQL_HOST:=snakeoil}
 : ${US_MYSQL_PORT:=0}
 : ${US_MYSQL_USER:=snakeoil}

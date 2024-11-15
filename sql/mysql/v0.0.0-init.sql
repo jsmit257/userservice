@@ -18,6 +18,7 @@ create table if not exists users(
   loginsuccess  datetime      null     default current_timestamp,
   loginfailure  datetime      null,
   failurecount  int unsigned  not null default 0,
+  locked        datetime      null,
   mtime         datetime      not null default current_timestamp,
   ctime         datetime      not null default current_timestamp,
   dtime         datetime      null
@@ -41,6 +42,9 @@ create table if not exists contacts(
   lastname     varchar(128)  not null,
   billto_uuid  varchar(36)   null,
   shipto_uuid  varchar(36)   null,
+  email        varchar(256)  null,
+  cell         varchar(20)   null, -- a phone number for txts and calls
+  phone        varchar(20)   null, -- don't send text messages here
   mtime        datetime      not null default current_timestamp,
   ctime        datetime      not null default current_timestamp,
   foreign key (uuid) references users(uuid),

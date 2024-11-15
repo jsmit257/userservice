@@ -11,10 +11,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
 
 	"github.com/jsmit257/userservice/internal/config"
+	"github.com/jsmit257/userservice/internal/metrics"
 	data "github.com/jsmit257/userservice/internal/relational"
 	"github.com/jsmit257/userservice/internal/router"
 	valid "github.com/jsmit257/userservice/internal/validation"
@@ -35,15 +37,13 @@ func main() {
 
 	logrus.SetLevel(logrus.DebugLevel)
 	logrus.SetFormatter(&logrus.JSONFormatter{})
-	// logrus.SetReportCaller(true) // this seems expensive, maybe nice to have, check it out before enabling
-
 	log := logrus.WithField("app", APP_NAME)
 
 	log.Info("loaded config and configured logger")
 
 	defer cleanup(log, cfg, err)
 
-	db, err := newMysql(cfg)
+	db, metrics, err := newMysql(cfg)
 	cfg.MySQLPwd = "*****" // kinda rude
 	if err != nil {
 		panic("failed to connect mysql client")
@@ -62,8 +62,8 @@ func main() {
 	}
 	log.Info("created redis authn store")
 
-	us := data.NewConn(db, sqls, log)
-	us.Validator = valid.NewValidator(authn, cfg)
+	us := data.NewUserService(db, sqls, log, metrics)
+	us.Validator = valid.NewValidator(authn, cfg, log)
 
 	srv := router.NewInstance(us, cfg, log)
 
@@ -92,7 +92,7 @@ func cleanup(log *logrus.Entry, cfg *config.Config, err error) {
 	}
 }
 
-func newMysql(cfg *config.Config) (*sql.DB, error) {
+func newMysql(cfg *config.Config) (*sql.DB, *prometheus.CounterVec, error) {
 	url := fmt.Sprintf("%s:%s@tcp(%s:%d)/userservice?parseTime=true",
 		cfg.MySQLUser,
 		cfg.MySQLPwd,
@@ -101,11 +101,15 @@ func newMysql(cfg *config.Config) (*sql.DB, error) {
 	)
 	db, err := sql.Open("mysql", url)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	} else if err = db.Ping(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return db, nil
+	return db, metrics.DataMetrics.MustCurryWith(prometheus.Labels{
+		"app": APP_NAME,
+		"db":  "mysql",
+		"pkg": "data",
+	}), nil
 }
 
 func newRedis(cfg *config.Config) (*redis.Client, error) {

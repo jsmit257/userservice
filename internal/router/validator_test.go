@@ -141,6 +141,6 @@ func (mv *mockValidator) Login(context.Context, shared.UUID, string, shared.CID)
 func (mv *mockValidator) Logout(context.Context, string, shared.CID) (*http.Cookie, int) {
 	return &testCookie, mv.logout
 }
-func (mv *mockValidator) Valid(context.Context, string, shared.CID) int {
-	return mv.valid
+func (mv *mockValidator) Valid(context.Context, string, shared.CID) (*http.Cookie, int) {
+	return &testCookie, mv.valid
 }

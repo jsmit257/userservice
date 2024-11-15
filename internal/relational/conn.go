@@ -3,46 +3,42 @@ package data
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
-
 	"github.com/google/uuid"
-
 	"github.com/prometheus/client_golang/prometheus"
-
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 
 	"github.com/jsmit257/userservice/internal/config"
-	"github.com/jsmit257/userservice/internal/metrics"
 	"github.com/jsmit257/userservice/internal/router"
 	"github.com/jsmit257/userservice/shared/v1"
 )
 
 type (
+	Conn struct {
+		query
+		uuidgen
+		sqls    config.Sqls
+		log     *logrus.Entry
+		metrics *prometheus.CounterVec
+	}
+
 	query interface {
 		ExecContext(context.Context, string, ...any) (sql.Result, error)
 		QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 		QueryRowContext(context.Context, string, ...any) *sql.Row
 	}
 
-	Conn struct {
-		query
-		generateUUID uuidgen
-		sqls         config.Sqls
-		logger       *log.Entry
-	}
-
 	uuidgen func() shared.UUID
+
+	deferred func(err error, l *logrus.Entry) error
+
+	userVec struct{ *prometheus.CounterVec }
 )
 
-var mtrcs = metrics.DataMetrics.MustCurryWith(prometheus.Labels{
-	"pkg": "data",
-	"app": "userservice",
-	"db":  "mysql",
-})
-
-func NewConn(db *sql.DB, sqls config.Sqls, l *log.Entry) *router.UserService {
-	conn := &Conn{db, uuidGen, sqls, l}
+func NewUserService(db *sql.DB, sqls config.Sqls, l *logrus.Entry, m *prometheus.CounterVec) *router.UserService {
+	conn := &Conn{db, uuidGen, sqls, l, m}
 	return &router.UserService{
 		Addresser: conn,
 		Auther:    conn,
@@ -51,10 +47,43 @@ func NewConn(db *sql.DB, sqls config.Sqls, l *log.Entry) *router.UserService {
 	}
 }
 
-func trackError(cid shared.CID, l *log.Entry, m *prometheus.CounterVec, err error, lvs ...string) error {
-	m.WithLabelValues(lvs...).Inc()
-	l.WithError(err).WithField("CID", cid).Error("???")
-	return err
+func (db *Conn) logging(fn string, key any, cid shared.CID) (deferred, *logrus.Entry) {
+	start := time.Now()
+
+	l := db.log.WithFields(logrus.Fields{
+		"method": fn,
+		"cid":    cid,
+	})
+
+	if key != nil {
+		l = l.WithField("key", key)
+	}
+
+	m := userVec{db.metrics}.labels(prometheus.Labels{"function": fn})
+
+	l.Info("starting work")
+
+	return func(err error, l *logrus.Entry) error {
+		if err != nil {
+			l = l.WithError(err)
+		}
+		l.WithField("duration", time.Since(start).String()).Infof("finished work")
+		m.done(err)
+		return err
+	}, l
+}
+
+func (u userVec) labels(l prometheus.Labels) userVec {
+	u.CounterVec = u.CounterVec.MustCurryWith(l)
+	return u
+}
+
+func (u userVec) done(err error) {
+	if err == nil {
+		u.WithLabelValues("none").Inc()
+	} else {
+		u.WithLabelValues(err.Error()).Inc()
+	}
 }
 
 func uuidGen() shared.UUID {

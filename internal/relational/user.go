@@ -2,9 +2,6 @@ package data
 
 import (
 	"context"
-	"database/sql"
-	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -13,6 +10,7 @@ import (
 )
 
 func (db *Conn) GetAllUsers(ctx context.Context, cid shared.CID) ([]shared.User, error) {
+	done, log := db.logging("GetAllUsers", nil, cid)
 
 	rows, err := db.QueryContext(ctx, db.sqls["user"]["select-all"])
 	if err != nil {
@@ -29,17 +27,18 @@ func (db *Conn) GetAllUsers(ctx context.Context, cid shared.CID) ([]shared.User,
 			&row.CTime,
 			&row.DTime,
 		); err != nil {
-			return nil, err
+			break
 		}
 		result = append(result, row)
 	}
 
-	return result, nil
+	return result, done(err, log)
 }
 
 func (db *Conn) GetUser(ctx context.Context, id shared.UUID, cid shared.CID) (*shared.User, error) {
-	result := &shared.User{}
+	done, log := db.logging("GetUser", id, cid)
 
+	result := &shared.User{}
 	err := db.
 		QueryRowContext(ctx, db.sqls["user"]["select"], id).
 		Scan(
@@ -50,22 +49,23 @@ func (db *Conn) GetUser(ctx context.Context, id shared.UUID, cid shared.CID) (*s
 			&result.DTime)
 
 	if err != nil {
-		return nil, err
+		return nil, done(err, log)
+	} else if result.Contact, err = db.getContact(ctx, id, cid); err != nil {
+		result = nil
 	}
 
-	if result.Contact, err = db.getContact(ctx, id, cid); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, err
-	}
-
-	return result, nil
+	return result, done(err, log)
 }
 
 func (db *Conn) AddUser(ctx context.Context, u *shared.User, cid shared.CID) (shared.UUID, error) {
+	done, log := db.logging("AddUser", u, cid)
+
 	now := time.Now().UTC()
-	u.UUID = db.generateUUID()
+	u.UUID = db.uuidgen()
 	u.MTime = now
 	u.CTime = now
 
+	var rows int64
 	result, err := db.ExecContext(ctx, db.sqls["user"]["insert"],
 		u.UUID,
 		u.Name,
@@ -79,56 +79,53 @@ func (db *Conn) AddUser(ctx context.Context, u *shared.User, cid shared.CID) (sh
 			if strings.Contains(v.Message, "users.PRIMARY") {
 				return db.AddUser(ctx, u, cid) // FIXME: handle infinite recursion (unlikely as it is)
 			} else if strings.Contains(v.Message, "users.name") {
-				return "", shared.UserExistsError
+				err = shared.UserExistsError
 			}
-			return "", v
-		default:
-			return "", err
 		}
-	} else if rows, err := result.RowsAffected(); err != nil {
-		return "", err
-	} else if rows != 1 {
-		return "", shared.UserNotAddedError
+	} else if rows, err = result.RowsAffected(); err == nil && rows != 1 {
+		err = shared.UserNotAddedError
 	}
-	return u.UUID, nil
+	return u.UUID, done(err, log)
 }
 
 func (db *Conn) UpdateUser(ctx context.Context, u *shared.User, cid shared.CID) error {
-	u.MTime = time.Now().UTC()
+	done, log := db.logging("UpdateUser", u, cid)
 
-	if result, err := db.ExecContext(ctx, db.sqls["user"]["update"],
+	u.MTime = time.Now().UTC()
+	result, err := db.ExecContext(ctx, db.sqls["user"]["update"],
 		u.Name,
 		u.MTime,
-		u.UUID,
-	); err != nil {
-		return fmt.Errorf("couldn't update user: %w", err)
-	} else if rows, err := result.RowsAffected(); err != nil {
-		return err
-	} else if rows != 1 {
-		return shared.UserNotUpdatedError
+		u.UUID)
+
+	if err == nil {
+		var rows int64
+		if rows, err = result.RowsAffected(); err == nil && rows != 1 {
+			return shared.UserNotUpdatedError
+		}
 	}
 
-	return nil
+	return done(err, log)
 }
 
 func (db *Conn) DeleteUser(ctx context.Context, id shared.UUID, cid shared.CID) error {
+	done, log := db.logging("DeleteUser", id, cid)
+
 	result, err := db.ExecContext(ctx, db.sqls["user"]["delete"], time.Now().UTC(), id)
-	if err != nil {
-		return err
-	} else if rows, err := result.RowsAffected(); err != nil {
-		return err
-	} else if rows != 1 {
-		return shared.UserNotDeletedError
+	if err == nil {
+		var rows int64
+		if rows, err = result.RowsAffected(); err == nil && rows != 1 {
+			return shared.UserNotDeletedError
+		}
 	}
-	return nil
+
+	return done(err, log)
 }
 
 func (db *Conn) CreateContact(ctx context.Context, u *shared.User, c shared.Contact, cid shared.CID) (*shared.Contact, error) {
 	var err error
+	done, log := db.logging("CreateContact", u, cid)
 
-	if u.Contact, err = db.addContact(ctx, u.UUID, c, cid); err != nil {
-		return nil, err
-	}
+	u.Contact, err = db.addContact(ctx, u.UUID, c, cid)
 
-	return u.Contact, nil
+	return u.Contact, done(err, log)
 }

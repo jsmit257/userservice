@@ -2,6 +2,8 @@ package data
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,12 +11,11 @@ import (
 )
 
 func (db *Conn) getContact(ctx context.Context, id shared.UUID, cid shared.CID) (*shared.Contact, error) {
+	done, log := db.logging("getContact", id, cid)
+
 	var billto, shipto *shared.UUID
-
 	result := &shared.Contact{}
-
 	contactRow := db.QueryRowContext(ctx, db.sqls["contact"]["select"], id)
-
 	err := contactRow.Scan(
 		&result.FirstName,
 		&result.LastName,
@@ -22,26 +23,30 @@ func (db *Conn) getContact(ctx context.Context, id shared.UUID, cid shared.CID) 
 		&shipto,
 		&result.MTime,
 		&result.CTime)
-	if err != nil {
-		return nil, err
-	}
 
-	if billto != nil {
-		if result.BillTo, err = db.GetAddress(ctx, *billto, cid); err != nil {
-			return nil, err
+	if err == nil {
+		if billto != nil {
+			result.BillTo, err = db.GetAddress(ctx, *billto, cid)
+		}
+
+		if err == nil && shipto != nil {
+			result.ShipTo, err = db.GetAddress(ctx, *shipto, cid)
+		}
+	} else {
+		result = nil
+		if errors.Is(err, sql.ErrNoRows) {
+			err = nil
 		}
 	}
 
-	if shipto != nil {
-		if result.ShipTo, err = db.GetAddress(ctx, *shipto, cid); err != nil {
-			return nil, err
-		}
-	}
-	return result, nil
+	return result, done(err, log)
 }
 
-func (db *Conn) addContact(ctx context.Context, userid shared.UUID, c shared.Contact, _ shared.CID) (*shared.Contact, error) {
-	if userid == "" {
+func (db *Conn) addContact(ctx context.Context, id shared.UUID, c shared.Contact, cid shared.CID) (*shared.Contact, error) {
+	var err error
+	done, log := db.logging("addContact", id, cid)
+
+	if id == "" {
 		return nil, fmt.Errorf("contacts require a valid user")
 	}
 
@@ -57,6 +62,7 @@ func (db *Conn) addContact(ctx context.Context, userid shared.UUID, c shared.Con
 		shipto = &c.ShipTo.UUID
 	}
 
+	var rows int64
 	result, err := db.ExecContext(ctx, db.sqls["contact"]["insert"],
 		c.FirstName,
 		c.LastName,
@@ -64,19 +70,20 @@ func (db *Conn) addContact(ctx context.Context, userid shared.UUID, c shared.Con
 		&shipto,
 		c.MTime,
 		c.CTime,
-		userid)
-	if err != nil {
-		return nil, err
-	} else if rows, err := result.RowsAffected(); err != nil {
-		return nil, err
-	} else if rows != 1 {
-		return nil, fmt.Errorf("contact was not inserted: '%s'", userid)
+		id)
+	if err == nil {
+		if rows, err = result.RowsAffected(); err == nil && rows != 1 {
+			err = fmt.Errorf("contact was not inserted: '%s'", id)
+		}
 	}
 
-	return &c, nil
+	return &c, done(err, log)
 }
 
-func (db *Conn) UpdateContact(ctx context.Context, userid shared.UUID, c *shared.Contact, cid shared.CID) error {
+func (db *Conn) UpdateContact(ctx context.Context, id shared.UUID, c *shared.Contact, cid shared.CID) error {
+	var err error
+	done, log := db.logging("UpdateContact", id, cid)
+
 	billto := (*shared.UUID)(nil)
 	if c.BillTo != nil {
 		billto = &c.BillTo.UUID
@@ -86,20 +93,20 @@ func (db *Conn) UpdateContact(ctx context.Context, userid shared.UUID, c *shared
 		shipto = &c.ShipTo.UUID
 	}
 
-	if result, err := db.ExecContext(ctx, db.sqls["contact"]["update"],
+	var rows int64
+	result, err := db.ExecContext(ctx, db.sqls["contact"]["update"],
 		c.FirstName,
 		c.LastName,
 		billto,
 		shipto,
 		time.Now().UTC(),
-		userid,
-	); err != nil {
-		return err
-	} else if rows, err := result.RowsAffected(); err != nil {
-		return err
-	} else if rows != 1 {
-		return fmt.Errorf("contact was not updated: '%s'", userid)
+		id,
+	)
+	if err == nil {
+		if rows, err = result.RowsAffected(); err == nil && rows != 1 {
+			err = fmt.Errorf("contact was not updated: '%s'", id)
+		}
 	}
 
-	return nil
+	return done(err, log)
 }

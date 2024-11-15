@@ -1,27 +1,29 @@
 ---
-
 x-mysql-host: &mysql-host percona
 x-mysql-port: &mysql-port 3306
 x-mysql-pwd: &mysql-pwd root
 x-mysql-user: &mysql-user root
 x-redis-user: &redis-user redis
 x-redis-pass: &redis-pass redis
-x-redis-host: &redis-host us-redis
+x-redis-host: &redis-host redis
 x-redis-port: &redis-port 6379
 x-http-host: &http-host servicetester
 x-http-port: &http-port 3000
+# FYI: mysql has permission problems with whomever owns this volume
+# locally, and using `chown` inside Dockerfile resolves to the local 
+# system's mysql user ID, not the service's; long story short, use 
+# `chown 1001:1001 ./.data` on the local host
 x-persist-volumes: &standalone-volumes
   - ./.data:/var/lib/mysql
 
 services:
-
-  # a standalone userservice database. nothing here is persisted 
-  # to the filesystem - use mysql-migration+mysql-persist for that.
-  # you don't need to test it, since it's the build stage for 
-  # mysql-persist and errors will be caught there, but it is good 
-  # for testing the userservice and not leaving a mess behind
   mysql-test:
-    image: jsmit257/us-db-mysql-test
+    # a standalone userservice database. nothing here is persisted 
+    # to the filesystem - use mysql-migration+mysql-persist for that.
+    # you don't need to test it, since it's the build stage for 
+    # mysql-persist and errors will be caught there, but it is good 
+    # for testing the userservice and not leaving a mess behind
+    image: jsmit257/us-db-mysql-test:latest
     build:
       context: .
       dockerfile: Dockerfile.mysql
@@ -33,7 +35,11 @@ services:
       MYSQL_ROOT_PASSWORD: *mysql-pwd
 
   mysql-migration:
-    image: jsmit257/us-db-mysql-mig
+    # same as a regular startup except the volume mount for persistence, 
+    # including any sql files in /docker-entrypoint-initdb.d; run it once
+    # to seed a new database, then periodically to apply patches; should 
+    # probably take down mysql-persist before you do it
+    image: jsmit257/us-db-mysql-mig:latest
     build:
       context: .
       dockerfile: Dockerfile.mysql
@@ -42,7 +48,11 @@ services:
     entrypoint: /var/lib/mysql-files/install-userservice.sh mysqld
 
   mysql-persist:
+    # the real server process; just hooks a vanilla percona container
+    # up to the volume previously/periodically written to by mysql-migration
     image: percona:ps-8.0.36-28
+    # this isn't really a dependency, it just needs to run before the
+    # first startup, and periodically afterward to pick up changes
     depends_on: [ mysql-migration ]
     restart: always
     hostname: *mysql-host
@@ -50,27 +60,37 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: *mysql-pwd
 
-  serve-mysql:
-    image: jsmit257/us-srv-mysql
-    build: .
-    hostname: *http-host
-    ports: [ 3000:3000 ]
-    environment:
-      US_MYSQL_HOST: *mysql-host
-      US_MYSQL_PASSWORD: *mysql-pwd
-      US_MYSQL_PORT: *mysql-port
-      US_MYSQL_USER: *mysql-user
-      US_HTTP_HOST: *http-host
-      US_HTTP_PORT: *http-port
-
   redis:
+    # stores login information, not unlike a session, just cares about 
+    # remote addresses and userid, for now; could turn into an authZ
+    # service at some point
     image: redis:bookworm
     restart: always
     hostname: *redis-host
     ports: [ 6666:6379 ]
 
+  serve-mysql:
+    # the main service, requires some database (we don't know which, so we
+    # can't set it here) and of course, redis is just redis
+    depends_on: [ redis ]
+    image: jsmit257/us-srv-mysql:latest
+    build: .
+    hostname: *http-host
+    ports: [ 3000:3000 ]
+    environment:
+      US_MYSQL_HOST: *mysql-host
+      US_MYSQL_PORT: *mysql-port
+      US_MYSQL_USER: *mysql-user
+      US_MYSQL_PASSWORD: *mysql-pwd
+      US_HTTP_HOST: *http-host
+      US_HTTP_PORT: *http-port
+      US_REDIS_HOST: *redis-host
+      US_REDIS_PORT: *redis-port
+
   us-web-test:
-    image: jsmit257/us-web-test
+    # test harness mostly auth functions that relate to redis endpoints
+    # (login/logout/valid); should add create to make it more comprehensive
+    image: jsmit257/us-web-test:latest
     restart: always
     build:
       context: ./nginx
@@ -79,7 +99,5 @@ services:
     environment:
       US_HTTP_HOST: *http-host
       US_HTTP_PORT: *http-port
-      US_REDIS_USER: *redis-user
-      US_REDIS_PASS: *redis-pass
       US_REDIS_HOST: *redis-host
       US_REDIS_PORT: *redis-port
