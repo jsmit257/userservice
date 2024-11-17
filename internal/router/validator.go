@@ -28,7 +28,7 @@ func (us UserService) GetValid(w http.ResponseWriter, r *http.Request) {
 
 	token, err := r.Cookie("us-authn")
 	if err != nil {
-		sc(http.StatusForbidden).send(m, w, shared.MissingAuthToken, shared.MissingAuthToken.Error())
+		sc(http.StatusForbidden).send(m, w, shared.MissingAuthToken)
 		return
 	}
 

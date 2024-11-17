@@ -56,7 +56,7 @@ func Test_Validation(t *testing.T) {
 		Expires: time.Now().UTC().Add(time.Hour),
 	})
 	require.Nil(t, err)
-	require.True(t, isvalid)
+	require.NotNil(t, isvalid)
 
 	// checking an invalid user
 	isvalid, err = shared.CheckValid(cfg.ServerHost, cfg.ServerPort, &http.Cookie{
@@ -65,7 +65,7 @@ func Test_Validation(t *testing.T) {
 		Expires: time.Now().UTC().Add(time.Hour),
 	})
 	require.Nil(t, err)
-	require.False(t, isvalid)
+	require.Nil(t, isvalid)
 
 	// logout the logged-in user
 	url := fmt.Sprintf("http://%s:%d/logout", cfg.ServerHost, cfg.ServerPort)

@@ -120,9 +120,12 @@ func (v *core) Logout(ctx context.Context, token string, cid shared.CID) (*http.
 	if _, result := v.Valid(ctx, token, cid); result != http.StatusFound {
 		l.WithField("status code", "result").Error("logout request isn't valid")
 		return nil, result
-	} else if uid, err := v.authn.HGet(ctx, key, userid).Result(); err != nil {
+	} else if uid, err := v.authn.HGet(ctx, key, userid).Result(); err != nil && err != redis.Nil {
 		l.WithError(err).Error("couldn't get userid for token")
 		return nil, http.StatusInternalServerError
+	} else if err == redis.Nil {
+		l.WithError(err).Error("user isn't logged in")
+		return nil, http.StatusForbidden
 	} else if err := v.authn.HDel(ctx, key, userid, remote).Err(); err != nil {
 		l.WithError(err).Error("couldn't remove token")
 		return nil, http.StatusInternalServerError

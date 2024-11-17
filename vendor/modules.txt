@@ -29,6 +29,10 @@ github.com/golang/protobuf/ptypes/timestamp
 # github.com/google/uuid v1.3.0
 ## explicit
 github.com/google/uuid
+# github.com/jarcoal/httpmock v1.3.1
+## explicit; go 1.18
+github.com/jarcoal/httpmock
+github.com/jarcoal/httpmock/internal
 # github.com/kelseyhightower/envconfig v1.4.0
 ## explicit
 github.com/kelseyhightower/envconfig

@@ -100,8 +100,9 @@ func (db *Conn) ResetPassword(ctx context.Context, id *shared.UUID, cid shared.C
 	}
 
 	// // use contact info to send a reset link; send it where?? need to add
-	// // more to the reset request; means maybe including those fields in
-	// // the auth object
+	// // more to the reset request; means maybe including more in the message
+	// // body, like a phone# to test against, and send a login link; not
+	// // quite MFA
 	// user, err := db.GetUser(ctx, *id, cid)
 	// if err != nil {
 	// 	return done(err, log)
