@@ -134,7 +134,7 @@ func (v *core) Logout(ctx context.Context, token string, cid shared.CID) (*http.
 		return nil, http.StatusInternalServerError
 	}
 
-	return v.logoutCookie, http.StatusAccepted // liked StatusGone better, but it's a 4xx series
+	return v.logoutCookie, http.StatusNoContent // liked StatusGone better, but it's a 4xx series
 }
 
 func (v *core) Valid(ctx context.Context, token string, cid shared.CID) (*http.Cookie, int) {

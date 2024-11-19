@@ -204,12 +204,15 @@ func Test_PatchLogin(t *testing.T) {
 
 	tcs := map[string]struct {
 		a        *mockAuther
-		new, old shared.BasicAuth
+		v        *mockValidator
+		new, old *shared.BasicAuth
 		sc       int
 	}{
 		"happy_path": {
 			a:   &mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
-			old: shared.BasicAuth{},
+			v:   &mockValidator{login: &http.Cookie{}, loginsc: http.StatusOK},
+			old: &shared.BasicAuth{},
+			new: &shared.BasicAuth{},
 			sc:  http.StatusNoContent,
 		},
 		"read_fails": {
@@ -220,9 +223,28 @@ func Test_PatchLogin(t *testing.T) {
 			a:  &mockAuther{getErr: fmt.Errorf("some error")},
 			sc: http.StatusBadRequest,
 		},
+		"nil_old": {
+			a:   &mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
+			new: &shared.BasicAuth{},
+			sc:  http.StatusBadRequest,
+		},
+		"nil_new": {
+			a:   &mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
+			old: &shared.BasicAuth{},
+			sc:  http.StatusBadRequest,
+		},
 		"change_fails": {
-			a:  &mockAuther{change: fmt.Errorf("some error")},
-			sc: http.StatusBadRequest,
+			a:   &mockAuther{change: fmt.Errorf("some error")},
+			old: &shared.BasicAuth{},
+			new: &shared.BasicAuth{},
+			sc:  http.StatusBadRequest,
+		},
+		"authn_login_fails": {
+			a:   &mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
+			v:   &mockValidator{login: nil, loginsc: http.StatusForbidden},
+			old: &shared.BasicAuth{},
+			new: &shared.BasicAuth{},
+			sc:  http.StatusForbidden,
 		},
 	}
 	for name, tc := range tcs {
@@ -231,16 +253,19 @@ func Test_PatchLogin(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			us := &UserService{Auther: tc.a}
+			us := &UserService{
+				Auther:    tc.a,
+				Validator: tc.v,
+			}
 
 			body := mustJSON(map[string]interface{}{
-				"old": tc.old,
-				"new": tc.new,
+				"Old": tc.old,
+				"New": tc.new,
 			})
-
 			if name == "unmarshal_fails" {
 				body = body[1:]
 			}
+
 			bodyreader := io.Reader(bytes.NewReader([]byte(body)))
 			if name == "read_fails" {
 				bodyreader = errReader(name)

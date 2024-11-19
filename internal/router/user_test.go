@@ -156,7 +156,7 @@ func Test_PostUser(t *testing.T) {
 				postUserResp: &shared.User{UUID: "1"},
 			},
 			r:        &shared.User{UUID: "1"},
-			sc:       http.StatusMovedPermanently,
+			sc:       http.StatusCreated,
 			response: "1",
 		},
 		"unmarshal_fails": {

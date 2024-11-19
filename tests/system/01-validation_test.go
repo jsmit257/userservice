@@ -50,22 +50,26 @@ func Test_Validation(t *testing.T) {
 	require.NotEmpty(t, token, "token after cookies")
 
 	// check the user is valid
-	isvalid, err := shared.CheckValid(cfg.ServerHost, cfg.ServerPort, &http.Cookie{
+	cookie, sc := shared.CheckValid(cfg.ServerHost, cfg.ServerPort, &http.Cookie{
 		Name:    cfg.CookieName,
 		Value:   token,
 		Expires: time.Now().UTC().Add(time.Hour),
 	})
-	require.Nil(t, err)
-	require.NotNil(t, isvalid)
+	require.Equal(t, http.StatusFound, sc, "%v", &http.Cookie{
+		Name:    cfg.CookieName,
+		Value:   token,
+		Expires: time.Now().UTC().Add(time.Hour),
+	})
+	require.NotNil(t, cookie)
 
 	// checking an invalid user
-	isvalid, err = shared.CheckValid(cfg.ServerHost, cfg.ServerPort, &http.Cookie{
+	cookie, sc = shared.CheckValid(cfg.ServerHost, cfg.ServerPort, &http.Cookie{
 		Name:    cfg.CookieName,
 		Value:   "token",
 		Expires: time.Now().UTC().Add(time.Hour),
 	})
-	require.Nil(t, err)
-	require.Nil(t, isvalid)
+	require.Equal(t, http.StatusForbidden, sc)
+	require.Nil(t, cookie)
 
 	// logout the logged-in user
 	url := fmt.Sprintf("http://%s:%d/logout", cfg.ServerHost, cfg.ServerPort)
@@ -80,7 +84,7 @@ func Test_Validation(t *testing.T) {
 
 	resp, err = http.DefaultClient.Do(req)
 	require.Nil(t, err, "logging out")
-	checkStatusCode(t, http.StatusAccepted, "logout", resp)
+	checkStatusCode(t, http.StatusNoContent, "logout", resp)
 
 	getToken(t, resp.Cookies())
 }

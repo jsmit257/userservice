@@ -52,15 +52,21 @@ func (us UserService) PostLogin(w http.ResponseWriter, r *http.Request) {
 func (us UserService) PatchLogin(w http.ResponseWriter, r *http.Request) {
 	m := mtrcs.MustCurryWith(prometheus.Labels{"function": "PatchLogin", "method": http.MethodPatch})
 
-	var login struct{ Old, New *shared.BasicAuth }
+	cid := cid()
 
+	var login struct{ Old, New *shared.BasicAuth }
 	if body, err := io.ReadAll(r.Body); err != nil {
 		sc(http.StatusBadRequest).send(m, w, err)
 	} else if err = json.Unmarshal(body, &login); err != nil {
 		sc(http.StatusBadRequest).send(m, w, err)
-	} else if err := us.Auther.ChangePassword(r.Context(), login.Old, login.New, cid()); err != nil {
+	} else if login.Old == nil || login.New == nil {
+		sc(http.StatusBadRequest).send(m, w, fmt.Errorf("incomplete input"))
+	} else if err := us.Auther.ChangePassword(r.Context(), login.Old, login.New, cid); err != nil {
 		sc(http.StatusBadRequest).send(m, w, err, err.Error())
+	} else if cookie, code := us.Validator.Login(r.Context(), login.Old.UUID, r.RemoteAddr, cid); code != http.StatusOK {
+		sc(code).send(m, w, fmt.Errorf("failed redis login"))
 	} else {
+		http.SetCookie(w, cookie)
 		sc(http.StatusNoContent).success(m, w)
 	}
 }

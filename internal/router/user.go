@@ -56,9 +56,8 @@ func (us *UserService) PostUser(w http.ResponseWriter, r *http.Request) {
 	} else if id == "" {
 		sc(http.StatusInternalServerError).send(m, w, fmt.Errorf("userid_nil"))
 	} else {
-		sc(http.StatusMovedPermanently).success(m, w)
-		w.Header().Add("Location", "/resetpassword") // FIXME: url isn't so simple
-		w.Header().Add("OTC", "one time code")       // FIXME: need to figure out codes
+		// w.Header().Add("OTC", "one time code") // FIXME: is this still a thing?
+		sc(http.StatusCreated).success(m, w)
 		_, _ = w.Write([]byte(id))
 	}
 }

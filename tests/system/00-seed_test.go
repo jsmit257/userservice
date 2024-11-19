@@ -61,7 +61,7 @@ func Test_SeedUsers(t *testing.T) {
 			body, err := io.ReadAll(resp.Body)
 			require.Nil(t, err)
 
-			require.Equal(t, http.StatusMovedPermanently, resp.StatusCode, "body: '%s'", body)
+			require.Equal(t, http.StatusCreated, resp.StatusCode, "body: '%s'", body)
 			require.NotEmpty(t, body)
 
 			users[i] = &shared.User{UUID: shared.UUID(body)}

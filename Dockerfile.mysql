@@ -1,7 +1,6 @@
 FROM percona:ps-8.0.36-28 AS migration
 COPY /sql/mysql/v0.0.0-init.sql /docker-entrypoint-initdb.d/v0.0.0-init.sql
 ENV MYSQL_ROOT_PASSWORD=root
-
 RUN grep -v 'exec "$@"' /docker-entrypoint.sh > /var/lib/mysql-files/install-userservice.sh
 RUN chmod 755 /var/lib/mysql-files/install-userservice.sh
 RUN /var/lib/mysql-files/install-userservice.sh mysqld

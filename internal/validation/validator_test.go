@@ -226,7 +226,7 @@ func Test_Logout(t *testing.T) {
 	mock.ExpectHDel("token:token", userid, remote).SetVal(1)
 	mock.Regexp().ExpectSRem("logins:.*", "token:.*").SetVal(1)
 	cookie, code = v.Logout(ctx, "token", cid)
-	require.Equal(t, http.StatusAccepted, code, cid)
+	require.Equal(t, http.StatusNoContent, code, cid)
 	require.Equal(t, &http.Cookie{
 		Name:     cfg.CookieName,
 		Value:    "",

@@ -164,11 +164,13 @@ func Test_LoginPatch(t *testing.T) {
 				UUID: users[pwdfail].UUID,
 				Pass: "wrong!",
 			},
+			new:  &shared.BasicAuth{},
 			sc:   http.StatusBadRequest,
 			resp: shared.PasswordsMatch.Error(),
 		},
 		"get_fails": {
 			old:  &shared.BasicAuth{UUID: "users.readonly.UUID"},
+			new:  &shared.BasicAuth{},
 			sc:   http.StatusBadRequest,
 			resp: sql.ErrNoRows.Error(),
 		},

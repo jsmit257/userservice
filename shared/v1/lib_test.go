@@ -21,7 +21,7 @@ func Test_CheckValid(t *testing.T) {
 		cookie   *http.Cookie
 		sc       int
 		response *http.Cookie
-		err      error
+		status   int
 	}{
 		"happy_path": {
 			host: "Test_CheckValid",
@@ -42,20 +42,21 @@ func Test_CheckValid(t *testing.T) {
 				MaxAge:     900,
 				HttpOnly:   true,
 			},
+			status: http.StatusFound,
 		},
 		"forbidden": {
 			host:   "Test_CheckValid",
 			port:   1,
 			cookie: &http.Cookie{},
 			sc:     http.StatusForbidden,
-			err:    MissingAuthToken,
+			status: http.StatusForbidden,
 		},
-		"empty_cookie": {
+		"tx_empty_cookie": {
 			host:   "Test_CheckValid",
 			port:   1,
 			cookie: &http.Cookie{},
-			sc:     http.StatusFound,
-			err:    MissingAuthToken,
+			sc:     http.StatusNoContent,
+			status: http.StatusForbidden,
 		},
 		// "unparseable": {
 		// 	// the service won't add a nameless cookie (http.AddCookie),
@@ -67,9 +68,9 @@ func Test_CheckValid(t *testing.T) {
 		// 	err:    fmt.Errorf("http: blank cookie"),
 		// },
 		"nil_cookie": { // unlikely to ever happen
-			host: "Test_CheckValid",
-			port: 1,
-			err:  fmt.Errorf("nil cookie"),
+			host:   "Test_CheckValid",
+			port:   1,
+			status: http.StatusForbidden,
 		},
 	}
 
@@ -90,7 +91,7 @@ func Test_CheckValid(t *testing.T) {
 			defer httpmock.Deactivate()
 
 			response, err := CheckValid(tc.host, tc.port, tc.cookie)
-			require.Equal(t, tc.err, err)
+			require.Equal(t, tc.status, err)
 			if tc.response != nil {
 				require.Equal(t, tc.response.Value, response.Value)
 				require.Equal(t, tc.response.Expires, response.Expires)

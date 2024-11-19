@@ -76,7 +76,7 @@ func NewInstance(us *UserService, cfg *config.Config, logger *log.Entry) *http.S
 	r.Get("/auth/{username}", us.GetAuth)
 	r.Post("/auth", us.PostLogin)
 	r.Patch("/auth/{user_id}", us.PatchLogin)
-	r.Delete("/auth/{user_id}", us.DeleteLogin)
+	// r.Delete("/auth/{user_id}", us.DeleteLogin) // wip.
 
 	r.Post("/logout", us.PostLogout)
 	r.Get("/valid", us.GetValid)

@@ -14,6 +14,7 @@ var (
 	BadUserOrPassError  = fmt.Errorf("bad username or password")
 	MaxFailedLoginError = fmt.Errorf("too many failed login attempts")
 	MissingAuthToken    = fmt.Errorf("missing auth token")
+	RedisTokenFail      = fmt.Errorf("failed redis login token")
 
 	PasswordsMatch = fmt.Errorf("passwords match")
 )
