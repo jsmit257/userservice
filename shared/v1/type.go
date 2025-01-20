@@ -5,8 +5,9 @@ import (
 )
 
 type (
-	UUID string
-	CID  string
+	UUID   string
+	CID    string
+	CTXKey string
 
 	Address struct {
 		UUID    UUID      `json:"id" mysql:"uuid"`
@@ -37,6 +38,7 @@ type (
 		LastName  string    `json:"last_name,omitempty"`
 		BillTo    *Address  `json:"bill_to,omitempty"`
 		ShipTo    *Address  `json:"ship_to,omitempty"`
+		Phone     *string   `json:"phone,omitempty"`
 		MTime     time.Time `json:"mtime"`
 		CTime     time.Time `json:"ctime"`
 	}
@@ -45,6 +47,8 @@ type (
 		UUID    UUID       `json:"id" mysql:"uuid"`
 		Name    string     `json:"username" mysql:"name"`
 		Contact *Contact   `json:"contact,omitempty"`
+		Email   *string    `json:"email,omitempty"`
+		Cell    *string    `json:"cell,omitempty"`
 		MTime   time.Time  `json:"mtime" mysql:"mtime"`
 		CTime   time.Time  `json:"ctime" mysql:"ctime"`
 		DTime   *time.Time `json:"dtime,omitempty" mysql:"dtime"`

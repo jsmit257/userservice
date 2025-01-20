@@ -1,0 +1,4 @@
+#!/bin/sh
+
+MAILD_RELAY_HOST=mail.google.com
+MAILD_RELAY_PORT=587

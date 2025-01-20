@@ -1,7 +1,6 @@
 package data
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"testing"
@@ -19,13 +18,16 @@ var (
 	_user = shared.User{
 		UUID:  "uuid",
 		Name:  "username",
+		Email: func(s string) *string { return &s }("example@example.com"),
 		MTime: rightaboutnow,
 		CTime: rightaboutnow,
 	}
-	userFields = row{"uuid", "name", "mtime", "ctime", "dtime"}
+	userFields = row{"uuid", "name", "email", "cell", "mtime", "ctime", "dtime"}
 	userValues = values{
 		_user.UUID,
 		_user.Name,
+		_user.Email,
+		_user.Cell,
 		_user.MTime,
 		_user.CTime,
 		_user.DTime,
@@ -37,6 +39,9 @@ func TestGetAllUsers(t *testing.T) {
 
 	l := testLogger(t, log.Fields{"app": "user_test.go", "test": "TestGetAllUsers"})
 
+	fields := append(append(make(row, 0, len(userFields)-2), userFields[:2]...), userFields[4:]...)
+	values := append(append(make(values, 0, len(userValues)-2), userValues[:2]...), userValues[4:]...)
+
 	tcs := map[string]struct {
 		mockDB getMockDB
 		result []shared.User
@@ -46,12 +51,16 @@ func TestGetAllUsers(t *testing.T) {
 			mockDB: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
 				mock.ExpectQuery("").
 					WillReturnRows(sqlmock.
-						NewRows(userFields).
-						AddRow(userValues...).
-						AddRow(userValues...))
+						NewRows(fields).
+						AddRow(values...).
+						AddRow(values...))
 				return db
 			},
-			result: []shared.User{_user, _user},
+			result: func(u shared.User) []shared.User {
+				u.Email = nil
+				u.Cell = nil
+				return []shared.User{u, u}
+			}(_user),
 		},
 		"db_fails": {
 			mockDB: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
@@ -71,9 +80,10 @@ func TestGetAllUsers(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				nil,
 				mockSqls(),
+				&senderMock{},
 				l,
 				testmetrics,
-			}).GetAllUsers(context.Background(), cid)
+			}).GetAllUsers(mockContext(cid))
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.result, result)
 		})
@@ -154,9 +164,10 @@ func TestGetUser(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				nil,
 				mockSqls(),
+				&senderMock{},
 				l,
 				testmetrics,
-			}).GetUser(context.Background(), "1", shared.CID("TestGetUser-"+name))
+			}).GetUser(mockContext(shared.CID("TestGetUser-"+name)), "1")
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.result, user)
 		})
@@ -251,9 +262,10 @@ func TestAddUser(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				mockUUIDGen,
 				mockSqls(),
+				&senderMock{},
 				l,
 				testmetrics,
-			}).AddUser(context.Background(), tc.user, shared.CID("TestAddUser-"+name))
+			}).AddUser(mockContext(shared.CID("TestAddUser-"+name)), tc.user)
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.result, result)
 		})
@@ -300,9 +312,10 @@ func TestUpdateUser(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				nil,
 				mockSqls(),
+				&senderMock{},
 				l,
 				testmetrics,
-			}).UpdateUser(context.Background(), tc.user, shared.CID("TestUpdateUser-"+name)))
+			}).UpdateUser(mockContext(shared.CID("TestUpdateUser-"+name)), tc.user))
 		})
 	}
 }
@@ -344,9 +357,10 @@ func TestDeleteUser(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				nil,
 				mockSqls(),
+				&senderMock{},
 				l,
 				testmetrics,
-			}).DeleteUser(context.Background(), "1", shared.CID("TestDeleteUser-"+name)))
+			}).DeleteUser(mockContext(shared.CID("TestDeleteUser-"+name)), "1"))
 		})
 	}
 }
@@ -391,9 +405,10 @@ func TestCreateContact(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				mockUUIDGen,
 				mockSqls(),
+				&senderMock{},
 				l,
 				testmetrics,
-			}).CreateContact(context.Background(), &tc.user, tc.contact, shared.CID("TestCreateContact-"+name))
+			}).CreateContact(mockContext(shared.CID("TestCreateContact-"+name)), &tc.user, tc.contact)
 
 			if result != nil {
 				result.MTime = time.Time{}

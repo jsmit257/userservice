@@ -16,8 +16,14 @@ type mockValidator struct {
 	login   *http.Cookie
 	loginsc int
 
-	logout,
-	valid int
+	logoutsc,
+	validsc int
+
+	token   string
+	tokensc int
+
+	validotp   *http.Cookie
+	validotpsc int
 }
 
 var testCookie = http.Cookie{
@@ -39,7 +45,7 @@ func Test_PostLogout(t *testing.T) {
 	}{
 		"pass_through": {
 			token: "foobar",
-			mv:    &mockValidator{logout: http.StatusFound},
+			mv:    &mockValidator{logoutsc: http.StatusFound},
 			sc:    http.StatusFound,
 		},
 		"missing_token": {
@@ -57,7 +63,7 @@ func Test_PostLogout(t *testing.T) {
 			w := httptest.NewRecorder()
 			r, _ := http.NewRequestWithContext(
 				context.WithValue(
-					context.Background(),
+					mockContext(),
 					chi.RouteCtxKey,
 					chi.NewRouteContext()),
 				http.MethodPost,
@@ -94,7 +100,7 @@ func Test_GetValid(t *testing.T) {
 	}{
 		"pass_through": {
 			token: "foobar",
-			mv:    &mockValidator{valid: http.StatusFound},
+			mv:    &mockValidator{validsc: http.StatusFound},
 			sc:    http.StatusFound,
 		},
 		"missing_token": {
@@ -112,7 +118,7 @@ func Test_GetValid(t *testing.T) {
 			w := httptest.NewRecorder()
 			r, _ := http.NewRequestWithContext(
 				context.WithValue(
-					context.Background(),
+					mockContext(),
 					chi.RouteCtxKey,
 					chi.NewRouteContext()),
 				http.MethodPost,
@@ -134,13 +140,71 @@ func Test_GetValid(t *testing.T) {
 	}
 }
 
-func (mv *mockValidator) Clear(context.Context, shared.CID) {}
-func (mv *mockValidator) Login(context.Context, shared.UUID, string, shared.CID) (*http.Cookie, int) {
+func Test_GetValidOTP(t *testing.T) {
+	t.Parallel()
+
+	tcs := map[string]struct {
+		pad string
+		mv  *mockValidator
+		sc  int
+	}{
+		"happy_path": {
+			pad: "foobar",
+			mv:  &mockValidator{validotpsc: http.StatusFound},
+			sc:  http.StatusFound,
+		},
+		"missing_token": {
+			sc: http.StatusBadRequest,
+		},
+	}
+
+	for name, tc := range tcs {
+		name, tc := name, tc
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			us := &UserService{Validator: tc.mv}
+
+			rctx := chi.NewRouteContext()
+			rctx.URLParams = chi.RouteParams{Keys: []string{"pad"}, Values: []string{tc.pad}}
+			w := httptest.NewRecorder()
+			r, _ := http.NewRequestWithContext(
+				context.WithValue(
+					mockContext(),
+					chi.RouteCtxKey,
+					rctx),
+				http.MethodPost,
+				"tc.url",
+				nil,
+			)
+			if tc.pad != "" {
+				r.AddCookie(&http.Cookie{
+					Name:    "us-authn",
+					Value:   tc.pad,
+					Expires: time.Now().UTC().Add(time.Hour),
+				})
+			}
+
+			us.GetValidOTP(w, r)
+
+			require.Equal(t, tc.sc, w.Code)
+		})
+	}
+}
+
+func (mv *mockValidator) Login(context.Context, shared.UUID, string) (*http.Cookie, int) {
 	return mv.login, mv.loginsc
 }
-func (mv *mockValidator) Logout(context.Context, string, shared.CID) (*http.Cookie, int) {
-	return &testCookie, mv.logout
+func (mv *mockValidator) Logout(context.Context, string) (*http.Cookie, int) {
+	return &testCookie, mv.logoutsc
 }
-func (mv *mockValidator) Valid(context.Context, string, shared.CID) (*http.Cookie, int) {
-	return &testCookie, mv.valid
+func (mv *mockValidator) Valid(context.Context, string) (*http.Cookie, int) {
+	return &testCookie, mv.validsc
+}
+func (mv *mockValidator) OTP(context.Context, shared.UUID, string) (string, int) {
+	return mv.token, mv.tokensc
+}
+func (mv *mockValidator) ValidOTP(context.Context, string, string) (*http.Cookie, int) {
+	return mv.validotp, mv.validotpsc
 }

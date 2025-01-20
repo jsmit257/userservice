@@ -10,13 +10,17 @@ import (
 	"github.com/go-redis/redismock/v9"
 	"github.com/jsmit257/userservice/internal/config"
 	"github.com/jsmit257/userservice/shared/v1"
+	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	ctx = context.Background()
-	cid = shared.CID("Test_Validator")
+	ctx = context.WithValue(
+		context.TODO(),
+		shared.CTXKey("cid"),
+		shared.CID("Test_Validator"),
+	)
 	cfg = &config.Config{
 		AuthnTimeout: 15,
 		CookieName:   "foobar",
@@ -36,25 +40,26 @@ func Test_Login(t *testing.T) {
 
 	// // count fails
 	mock.ExpectSMembers("logins:userid").SetErr(fmt.Errorf("some error"))
-	valid, sc := v.Login(ctx, userid, remote, cid)
+	valid, sc := v.Login(ctx, userid, remote)
 	require.Equal(t, http.StatusInternalServerError, sc)
-	require.Nil(t, valid)
+	require.NotNil(t, valid)
+	logoutCookie := valid
 
 	// failed exists token
 	mock.ExpectSMembers("logins:userid").SetVal(logins)
 	mock.ExpectExists("1").SetErr(fmt.Errorf("some error"))
-	valid, sc = v.Login(ctx, userid, remote, cid)
+	valid, sc = v.Login(ctx, userid, remote)
 	require.Equal(t, http.StatusInternalServerError, sc)
-	require.Nil(t, valid)
+	require.Equal(t, logoutCookie, valid)
 
 	// too many members
 	mock.ExpectSMembers("logins:userid").SetVal(logins)
 	for _, v := range logins {
 		mock.ExpectExists(v).SetVal(1)
 	}
-	valid, sc = v.Login(ctx, userid, remote, cid)
+	valid, sc = v.Login(ctx, userid, remote)
 	require.Equal(t, http.StatusTooManyRequests, sc)
-	require.Nil(t, valid)
+	require.Equal(t, logoutCookie, valid)
 
 	// did cleanup but still too many members
 	mock.ExpectSMembers("logins:userid").SetVal(logins)
@@ -63,9 +68,9 @@ func Test_Login(t *testing.T) {
 		mock.ExpectExists(v).SetVal(1)
 	}
 	mock.ExpectSRem("logins:userid", "1").SetVal(1)
-	valid, sc = v.Login(ctx, userid, remote, cid)
+	valid, sc = v.Login(ctx, userid, remote)
 	require.Equal(t, http.StatusTooManyRequests, sc)
-	require.Nil(t, valid)
+	require.Equal(t, logoutCookie, valid)
 
 	// error removing tokens
 	mock.ExpectSMembers("logins:userid").SetVal(logins)
@@ -75,9 +80,9 @@ func Test_Login(t *testing.T) {
 		mock.ExpectExists(v).SetVal(1)
 	}
 	mock.ExpectSRem("logins:userid", "1", "2").SetErr(fmt.Errorf("some error"))
-	valid, sc = v.Login(ctx, userid, remote, cid)
+	valid, sc = v.Login(ctx, userid, remote)
 	require.Equal(t, http.StatusInternalServerError, sc)
-	require.Nil(t, valid)
+	require.Equal(t, logoutCookie, valid)
 
 	// failed to set token
 	mock.ExpectSMembers("logins:userid").SetVal(logins[:2])
@@ -85,9 +90,9 @@ func Test_Login(t *testing.T) {
 		userid: userid,
 		remote: remote,
 	}).SetErr(fmt.Errorf("some error"))
-	valid, sc = v.Login(ctx, userid, remote, cid)
+	valid, sc = v.Login(ctx, userid, remote)
 	require.Equal(t, http.StatusInternalServerError, sc)
-	require.Nil(t, valid)
+	require.Equal(t, logoutCookie, valid)
 
 	// failed to set expiry
 	mock.ExpectSMembers("logins:userid").SetVal(logins[:2])
@@ -96,9 +101,9 @@ func Test_Login(t *testing.T) {
 		remote: remote,
 	}).SetVal(1)
 	mock.Regexp().ExpectExpire("token:.*", expireme).SetErr(fmt.Errorf("some error"))
-	valid, sc = v.Login(ctx, userid, remote, cid)
+	valid, sc = v.Login(ctx, userid, remote)
 	require.Equal(t, http.StatusInternalServerError, sc)
-	require.Nil(t, valid)
+	require.Equal(t, logoutCookie, valid)
 
 	// couldn't find the token we just created - ???
 	mock.ExpectSMembers("logins:userid").SetVal(logins[:2])
@@ -107,9 +112,9 @@ func Test_Login(t *testing.T) {
 		remote: remote,
 	}).SetVal(1)
 	mock.Regexp().ExpectExpire("token:.*", expireme).SetVal(false)
-	valid, sc = v.Login(ctx, userid, remote, cid)
+	valid, sc = v.Login(ctx, userid, remote)
 	require.Equal(t, http.StatusInternalServerError, sc)
-	require.Nil(t, valid)
+	require.Equal(t, logoutCookie, valid)
 
 	// add to index fails
 	mock.ExpectSMembers("logins:userid").SetVal(logins[:2])
@@ -119,9 +124,9 @@ func Test_Login(t *testing.T) {
 	}).SetVal(1)
 	mock.Regexp().ExpectExpire("token:.*", expireme).SetVal(true)
 	mock.Regexp().ExpectSAdd("logins:userid", "token:.*").SetErr(fmt.Errorf("some error"))
-	valid, sc = v.Login(ctx, userid, remote, cid)
+	valid, sc = v.Login(ctx, userid, remote)
 	require.Equal(t, http.StatusInternalServerError, sc)
-	require.Nil(t, valid)
+	require.Equal(t, logoutCookie, valid)
 
 	// finally! the happy login path
 	mock.ExpectSMembers("logins:userid").SetVal(logins)
@@ -137,7 +142,7 @@ func Test_Login(t *testing.T) {
 	}).SetVal(1)
 	mock.Regexp().ExpectExpire("token:.*", expireme).SetVal(true)
 	mock.Regexp().ExpectSAdd("logins:userid", "token:.*").SetVal(1)
-	valid, sc = v.Login(ctx, userid, remote, cid)
+	valid, sc = v.Login(ctx, userid, remote)
 	require.Equal(t, http.StatusOK, sc)
 	require.NotNil(t, valid)
 	require.NotEmpty(t, valid.Value)
@@ -152,30 +157,30 @@ func Test_Valid(t *testing.T) {
 
 	// exists fails
 	mock.ExpectExists("token:token").SetErr(fmt.Errorf("some error"))
-	_, sc := v.Valid(ctx, "token", cid)
+	_, sc := v.Valid(ctx, "token")
 	require.Equal(t, http.StatusInternalServerError, sc)
 
 	// doesn't exist
 	mock.ExpectExists("token:token").SetVal(0)
-	_, sc = v.Valid(ctx, "token", cid)
+	_, sc = v.Valid(ctx, "token")
 	require.Equal(t, http.StatusForbidden, sc)
 
 	// update expiry fails
 	mock.ExpectExists("token:token").SetVal(1)
 	mock.ExpectExpire("token:token", expireme).SetErr(fmt.Errorf("some error"))
-	_, sc = v.Valid(ctx, "token", cid)
+	_, sc = v.Valid(ctx, "token")
 	require.Equal(t, http.StatusInternalServerError, sc)
 
 	// token doesn't exist (any more? how?)
 	mock.ExpectExists("token:token").SetVal(1)
 	mock.ExpectExpire("token:token", expireme).SetVal(false)
-	_, sc = v.Valid(ctx, "token", cid)
+	_, sc = v.Valid(ctx, "token")
 	require.Equal(t, http.StatusInternalServerError, sc)
 
 	// happy path for valid
 	mock.ExpectExists("token:token").SetVal(1)
 	mock.ExpectExpire("token:token", expireme).SetVal(true)
-	_, sc = v.Valid(ctx, "token", cid)
+	_, sc = v.Valid(ctx, "token")
 	require.Equal(t, http.StatusFound, sc)
 }
 
@@ -188,16 +193,16 @@ func Test_Logout(t *testing.T) {
 
 	// valid gets an error
 	mock.ExpectExists("token:token").SetVal(0)
-	cookie, code := v.Logout(ctx, "token", cid)
-	require.Equal(t, http.StatusForbidden, code, cid)
+	cookie, code := v.Logout(ctx, "token")
+	require.Equal(t, http.StatusForbidden, code)
 	require.Nil(t, cookie)
 
 	// get userid fails
 	mock.ExpectExists("token:token").SetVal(1)
 	mock.ExpectExpire("token:token", expireme).SetVal(true)
 	mock.ExpectHGet("token:token", userid).SetErr(fmt.Errorf("some error"))
-	cookie, code = v.Logout(ctx, "token", cid)
-	require.Equal(t, http.StatusInternalServerError, code, cid)
+	cookie, code = v.Logout(ctx, "token")
+	require.Equal(t, http.StatusInternalServerError, code)
 	require.Nil(t, cookie)
 
 	// delete hash fails
@@ -205,8 +210,8 @@ func Test_Logout(t *testing.T) {
 	mock.ExpectExpire("token:token", expireme).SetVal(true)
 	mock.ExpectHGet("token:token", userid).SetVal("12345")
 	mock.ExpectHDel("token:token", userid, remote).SetErr(fmt.Errorf("some error"))
-	cookie, code = v.Logout(ctx, "token", cid)
-	require.Equal(t, http.StatusInternalServerError, code, cid)
+	cookie, code = v.Logout(ctx, "token")
+	require.Equal(t, http.StatusInternalServerError, code)
 	require.Nil(t, cookie)
 
 	// remove from index fails
@@ -215,8 +220,8 @@ func Test_Logout(t *testing.T) {
 	mock.ExpectHGet("token:token", userid).SetVal("12345")
 	mock.ExpectHDel("token:token", userid, remote).SetVal(1)
 	mock.Regexp().ExpectSRem("logins:.*", "token:.*").SetErr(fmt.Errorf("some error"))
-	cookie, code = v.Logout(ctx, "token", cid)
-	require.Equal(t, http.StatusInternalServerError, code, cid)
+	cookie, code = v.Logout(ctx, "token")
+	require.Equal(t, http.StatusInternalServerError, code)
 	require.Nil(t, cookie)
 
 	// happy logout
@@ -225,8 +230,8 @@ func Test_Logout(t *testing.T) {
 	mock.ExpectHGet("token:token", userid).SetVal("12345")
 	mock.ExpectHDel("token:token", userid, remote).SetVal(1)
 	mock.Regexp().ExpectSRem("logins:.*", "token:.*").SetVal(1)
-	cookie, code = v.Logout(ctx, "token", cid)
-	require.Equal(t, http.StatusNoContent, code, cid)
+	cookie, code = v.Logout(ctx, "token")
+	require.Equal(t, http.StatusNoContent, code)
 	require.Equal(t, &http.Cookie{
 		Name:     cfg.CookieName,
 		Value:    "",
@@ -235,4 +240,180 @@ func Test_Logout(t *testing.T) {
 		MaxAge:   -1,
 		HttpOnly: true,
 	}, cookie)
+}
+
+func Test_OTP(t *testing.T) {
+	t.Parallel()
+
+	db, mock := redismock.NewClientMock()
+	l := logrus.WithField("test", "Test_OTP")
+	v := NewValidator(db, cfg, l)
+
+	// happy path
+	mock.Regexp().ExpectHSet("pad:.*", map[string]interface{}{
+		userid: userid,
+		remote: remote,
+	}).SetVal(1)
+	mock.Regexp().ExpectExpire("pad:.*", expireme).SetVal(true)
+	mock.Regexp().ExpectSAdd("logins:userid", "pad:.*").SetVal(1)
+	pad, sc := v.OTP(ctx, userid, remote)
+	require.Equal(t, http.StatusOK, sc, pad)
+	require.NotEmpty(t, pad)
+
+	// err creating hash
+	mock.Regexp().ExpectHSet("pad:.*", map[string]interface{}{
+		userid: userid,
+		remote: remote,
+	}).SetErr(fmt.Errorf("some error"))
+	pad, sc = v.OTP(ctx, userid, remote)
+	require.Equal(t, http.StatusInternalServerError, sc, pad)
+
+	// err expiring new hash
+	mock.Regexp().ExpectHSet("pad:.*", map[string]interface{}{
+		userid: userid,
+		remote: remote,
+	}).SetVal(1)
+	mock.Regexp().ExpectExpire("pad:.*", expireme).SetErr(fmt.Errorf("some error"))
+	pad, sc = v.OTP(ctx, userid, remote)
+	require.Equal(t, http.StatusInternalServerError, sc, pad)
+
+	// error adding pad to logins
+	mock.Regexp().ExpectHSet("pad:.*", map[string]interface{}{
+		userid: userid,
+		remote: remote,
+	}).SetVal(1)
+	mock.Regexp().ExpectExpire("pad:.*", expireme).SetVal(true)
+	mock.Regexp().ExpectSAdd("logins:userid", "pad:.*").SetErr(fmt.Errorf("some error"))
+	pad, sc = v.OTP(ctx, userid, remote)
+	require.Equal(t, http.StatusInternalServerError, sc, pad)
+	require.NotEmpty(t, pad)
+
+	// adding pad to login returns 0
+	mock.Regexp().ExpectHSet("pad:.*", map[string]interface{}{
+		userid: userid,
+		remote: remote,
+	}).SetVal(1)
+	mock.Regexp().ExpectExpire("pad:.*", expireme).SetVal(true)
+	mock.Regexp().ExpectSAdd("logins:userid", "pad:.*").SetVal(0)
+	pad, sc = v.OTP(ctx, userid, remote)
+	require.Equal(t, http.StatusInternalServerError, sc, pad)
+	require.NotEmpty(t, pad)
+}
+
+func Test_CheckOTP(t *testing.T) {
+	t.Parallel()
+
+	db, mock := redismock.NewClientMock()
+	l := logrus.WithField("test", "Test_CheckOTP")
+	v := NewValidator(db, cfg, l)
+
+	// fails finding a pad
+	mock.ExpectHGetAll("pad:1").SetErr(fmt.Errorf("some error"))
+	cookie, sc := v.ValidOTP(ctx, "1", remote)
+	require.Equal(t, http.StatusForbidden, sc, cookie)
+
+	// missing userid
+	mock.ExpectHGetAll("pad:1").SetVal(map[string]string{})
+	cookie, sc = v.ValidOTP(ctx, "1", remote)
+	require.Equal(t, http.StatusForbidden, sc, cookie)
+
+	// empty userid
+	mock.ExpectHGetAll("pad:1").SetVal(map[string]string{userid: ""})
+	cookie, sc = v.ValidOTP(ctx, "1", remote)
+	require.Equal(t, http.StatusForbidden, sc, cookie)
+
+	// fails getting logins
+	mock.ExpectHGetAll("pad:1").SetVal(map[string]string{
+		userid: userid,
+		remote: remote,
+	})
+	mock.ExpectSMembers("logins:" + userid).SetErr(fmt.Errorf("some error"))
+	cookie, sc = v.ValidOTP(ctx, "1", remote)
+	require.Equal(t, http.StatusForbidden, sc, cookie)
+
+	// happy but with no logins to remove (redis.Nil)
+	mock.ExpectHGetAll("pad:1").SetVal(map[string]string{
+		userid: userid,
+		remote: remote,
+	})
+	mock.ExpectSMembers("logins:userid").SetErr(redis.Nil)
+	mock.ExpectSMembers("logins:userid").SetVal([]string{})
+	mock.Regexp().ExpectHSet("token:.*", map[string]interface{}{
+		userid: userid,
+		remote: remote,
+	}).SetVal(1)
+	mock.Regexp().ExpectExpire("token:.*", expireme).SetVal(true)
+	mock.Regexp().ExpectSAdd("logins:userid", "token:.*").SetVal(1)
+	cookie, sc = v.ValidOTP(ctx, "1", remote)
+	require.Equal(t, http.StatusFound, sc, cookie)
+
+	// happy but with no logins to remove (empty list)
+	mock.Regexp().ExpectHGetAll("pad:1").SetVal(map[string]string{
+		userid: userid,
+		remote: remote,
+	})
+	mock.ExpectSMembers("logins:userid").SetVal([]string{})
+	mock.ExpectSMembers("logins:userid").SetVal([]string{})
+	mock.Regexp().ExpectHSet("token:.*", map[string]interface{}{
+		userid: userid,
+		remote: remote,
+	}).SetVal(1)
+	mock.Regexp().ExpectExpire("token:.*", expireme).SetVal(true)
+	mock.Regexp().ExpectSAdd("logins:userid", "token:.*").SetVal(1)
+	cookie, sc = v.ValidOTP(ctx, "1", remote)
+	require.Equal(t, http.StatusFound, sc, cookie)
+
+	// can't delete a hash
+	mock.Regexp().ExpectHGetAll("pad:.*").SetVal(map[string]string{
+		userid: userid,
+		remote: remote,
+	})
+	mock.ExpectSMembers("logins:" + userid).SetVal([]string{"pad:1"})
+	mock.ExpectHDel("pad:1", userid, remote).SetErr(fmt.Errorf("some error"))
+	cookie, sc = v.ValidOTP(ctx, userid, remote)
+	require.Equal(t, http.StatusInternalServerError, sc, cookie)
+
+	// can't remove an element from logins
+	mock.ExpectHGetAll("pad:1").SetVal(map[string]string{
+		userid: userid,
+		remote: remote,
+	})
+	mock.ExpectSMembers("logins:" + userid).SetVal([]string{"pad:1"})
+	mock.ExpectHDel("pad:1", userid, remote).SetVal(2)
+	mock.ExpectSRem("logins:"+userid, "pad:1").SetErr(fmt.Errorf("some error"))
+	cookie, sc = v.ValidOTP(ctx, "1", remote)
+	require.Equal(t, http.StatusInternalServerError, sc, cookie)
+
+	// something in login fails, doesn't matter what
+	mock.ExpectHGetAll("pad:1").SetVal(map[string]string{
+		userid: userid,
+		remote: remote,
+	})
+	mock.ExpectSMembers("logins:" + userid).SetVal([]string{"pad:1"})
+	mock.ExpectHDel("pad:1", userid, remote).SetVal(2)
+	mock.ExpectSRem("logins:"+userid, "pad:1").SetVal(1)
+	mock.ExpectSMembers("logins:userid").SetErr(fmt.Errorf("some error"))
+	cookie, sc = v.ValidOTP(ctx, "1", remote)
+	require.Equal(t, http.StatusInternalServerError, sc, cookie)
+
+	// the happy path does a lot
+	mock.ExpectHGetAll("pad:1").SetVal(map[string]string{
+		userid: userid,
+		remote: remote,
+	})
+	mock.ExpectSMembers("logins:" + userid).SetVal([]string{"pad:1"})
+	mock.ExpectHDel("pad:1", userid, remote).SetVal(2)
+	mock.ExpectSRem("logins:"+userid, "pad:1").SetVal(1)
+	// the rest is from Test_Login happy path
+	mock.ExpectSMembers("logins:userid").SetVal([]string{})
+	mock.Regexp().ExpectHSet("token:.*", map[string]interface{}{
+		userid: userid,
+		remote: remote,
+	}).SetVal(1)
+	mock.Regexp().ExpectExpire("token:.*", expireme).SetVal(true)
+	mock.Regexp().ExpectSAdd("logins:userid", "token:.*").SetVal(1)
+	cookie, sc = v.ValidOTP(ctx, "1", remote)
+	require.Equal(t, http.StatusFound, sc, cookie)
+	require.NotNil(t, cookie)
+	require.NotEmpty(t, cookie.Value)
 }

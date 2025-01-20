@@ -113,6 +113,8 @@ user:
   select: 
     select  uuid,
             name,
+            email,
+            cell,
             mtime,
             ctime,
             dtime

@@ -82,7 +82,7 @@ func Test_GetAuth(t *testing.T) {
 			w := httptest.NewRecorder()
 			r, _ := http.NewRequestWithContext(
 				context.WithValue(
-					context.Background(),
+					mockContext(),
 					chi.RouteCtxKey,
 					rctx),
 				http.MethodGet,
@@ -175,7 +175,7 @@ func Test_PostLogin(t *testing.T) {
 			w := httptest.NewRecorder()
 			r, _ := http.NewRequestWithContext(
 				context.WithValue(
-					context.Background(),
+					mockContext(),
 					chi.RouteCtxKey,
 					chi.NewRouteContext()),
 				http.MethodGet,
@@ -274,7 +274,7 @@ func Test_PatchLogin(t *testing.T) {
 			w := httptest.NewRecorder()
 			r, _ := http.NewRequestWithContext(
 				context.WithValue(
-					context.Background(),
+					mockContext(),
 					chi.RouteCtxKey,
 					chi.NewRouteContext()),
 				http.MethodGet,
@@ -290,29 +290,134 @@ func Test_PatchLogin(t *testing.T) {
 }
 
 func Test_DeleteLogin(t *testing.T) {
+	var (
+		addr    = "addr"
+		badaddr = "badaddr"
+		cell    = "cell"
+		badcell = "badcell"
+	)
+
 	t.Parallel()
 
 	tcs := map[string]struct {
-		a     *mockAuther
-		login shared.BasicAuth
-		sc    int
+		a     mockAuther
+		u     mockUserer
+		s     mockSender
+		v     mockValidator
+		login shared.User
+		input,
+		user *shared.User
+		sc int
 	}{
 		"happy_path": {
-			a:     &mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
-			login: shared.BasicAuth{UUID: "uuid"},
-			sc:    http.StatusNoContent,
+			a: mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
+			v: mockValidator{token: "token"},
+			s: mockSender{},
+			u: mockUserer{
+				user: &shared.User{
+					UUID:  "uuid",
+					Email: &addr,
+					Cell:  &cell,
+				}},
+			login: shared.User{
+				UUID:  "uuid",
+				Email: &addr,
+				Cell:  &cell,
+			},
+			sc: http.StatusNoContent,
 		},
 		"read_fails": {
-			a:  &mockAuther{},
 			sc: http.StatusBadRequest,
 		},
 		"unmarshal_fails": {
-			a:  &mockAuther{getErr: fmt.Errorf("some error")},
 			sc: http.StatusBadRequest,
 		},
-		"reset_fails": {
-			a:  &mockAuther{reset: fmt.Errorf("some error")},
+		"get_user_fails": {
+			u:     mockUserer{userErr: fmt.Errorf("some error")},
+			login: shared.User{UUID: "uuid"},
+			sc:    http.StatusInternalServerError,
+		},
+		"undeliverable": {
+			u:     mockUserer{user: &shared.User{UUID: "uuid"}},
+			login: shared.User{UUID: "uuid"},
+			sc:    http.StatusBadRequest,
+		},
+		"email_mismatch": {
+			u: mockUserer{user: &shared.User{
+				UUID:  "uuid",
+				Email: &addr,
+				Cell:  &cell,
+			}},
+			login: shared.User{
+				UUID:  "uuid",
+				Email: &badaddr,
+			},
 			sc: http.StatusBadRequest,
+		},
+		"cell_mismatch": {
+			u: mockUserer{user: &shared.User{
+				UUID:  "uuid",
+				Email: &addr,
+				Cell:  &cell,
+			}},
+			login: shared.User{
+				UUID: "uuid",
+				Cell: &badcell,
+			},
+			sc: http.StatusBadRequest,
+		},
+		"gen_token_fails": {
+			u: mockUserer{user: &shared.User{
+				UUID:  "uuid",
+				Email: &addr,
+				Cell:  &cell,
+			}},
+			v: mockValidator{tokensc: http.StatusConflict},
+			login: shared.User{
+				UUID: "uuid",
+				Cell: &cell,
+			},
+			sc: http.StatusConflict,
+		},
+		"reset_fails": {
+			u: mockUserer{user: &shared.User{
+				UUID:  "uuid",
+				Email: &addr,
+				Cell:  &cell,
+			}},
+			a: mockAuther{reset: fmt.Errorf("some error")},
+			v: mockValidator{token: "token"},
+			login: shared.User{
+				UUID: "uuid",
+				Cell: &cell,
+			},
+			sc: http.StatusBadRequest,
+		},
+		"send_email_fails": {
+			u: mockUserer{user: &shared.User{
+				UUID:  "uuid",
+				Email: &addr,
+				Cell:  &cell,
+			}},
+			v: mockValidator{token: "token"},
+			s: mockSender{err: fmt.Errorf("some error")},
+			login: shared.User{
+				UUID: "uuid",
+				Cell: &cell,
+			},
+			sc: http.StatusInternalServerError,
+		},
+		"send_sms_fails": {
+			u: mockUserer{user: &shared.User{
+				UUID:  "uuid",
+				Email: &addr,
+			}},
+			v: mockValidator{token: "token"},
+			login: shared.User{
+				UUID:  "uuid",
+				Email: &addr,
+			},
+			sc: http.StatusInternalServerError,
 		},
 	}
 	for name, tc := range tcs {
@@ -321,24 +426,39 @@ func Test_DeleteLogin(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			us := &UserService{Auther: tc.a}
+			us := &UserService{
+				Auther:    &tc.a,
+				Sender:    &tc.s,
+				Userer:    &tc.u,
+				Validator: &tc.v,
+			}
 
-			rctx := chi.NewRouteContext()
-			rctx.URLParams = chi.RouteParams{Keys: []string{"user_id"}, Values: []string{string(tc.login.UUID)}}
+			body := userToBody(&tc.login)
+			if name == "unmarshal_fails" {
+				body = body[1:]
+			}
+			bodyreader := io.Reader(bytes.NewReader([]byte(body)))
+			if name == "read_fails" {
+				bodyreader = errReader(name)
+			}
+
 			w := httptest.NewRecorder()
 			r, _ := http.NewRequestWithContext(
 				context.WithValue(
-					context.Background(),
+					mockContext(),
 					chi.RouteCtxKey,
-					rctx),
-				http.MethodGet,
+					chi.NewRouteContext()),
+				http.MethodDelete,
 				"tc.url",
-				nil,
+				bodyreader,
 			)
 
 			us.DeleteLogin(w, r)
 
-			require.Equal(t, tc.sc, w.Code)
+			resp, err := io.ReadAll(w.Body)
+			require.Nil(t, err)
+
+			require.Equal(t, tc.sc, w.Code, string(resp))
 		})
 	}
 }
@@ -348,15 +468,15 @@ func authToBody(a *shared.BasicAuth) string {
 	return string(result)
 }
 
-func (ma *mockAuther) GetAuthByAttrs(context.Context, *shared.UUID, *string, shared.CID) (*shared.BasicAuth, error) {
+func (ma *mockAuther) GetAuthByAttrs(context.Context, *shared.UUID, *string) (*shared.BasicAuth, error) {
 	return ma.get, ma.getErr
 }
-func (ma *mockAuther) ChangePassword(context.Context, *shared.BasicAuth, *shared.BasicAuth, shared.CID) error {
+func (ma *mockAuther) ChangePassword(context.Context, *shared.BasicAuth, *shared.BasicAuth) error {
 	return ma.change
 }
-func (ma *mockAuther) Login(context.Context, *shared.BasicAuth, shared.CID) (*shared.BasicAuth, error) {
+func (ma *mockAuther) Login(context.Context, *shared.BasicAuth) (*shared.BasicAuth, error) {
 	return ma.login, ma.loginErr
 }
-func (ma *mockAuther) ResetPassword(context.Context, *shared.UUID, shared.CID) error {
+func (ma *mockAuther) ResetPassword(context.Context, *shared.UUID) error {
 	return ma.reset
 }

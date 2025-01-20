@@ -16,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/jsmit257/userservice/internal/config"
+	"github.com/jsmit257/userservice/internal/maild"
 	"github.com/jsmit257/userservice/internal/metrics"
 	data "github.com/jsmit257/userservice/internal/relational"
 	"github.com/jsmit257/userservice/internal/router"
@@ -43,12 +44,18 @@ func main() {
 
 	defer cleanup(log, cfg, err)
 
-	db, metrics, err := newMysql(cfg)
+	db, dbmtrx, err := newMysql(cfg)
 	cfg.MySQLPwd = "*****" // kinda rude
 	if err != nil {
 		panic("failed to connect mysql client")
 	}
 	log.Info("configured mysql client")
+
+	sender, err := maild.NewSender(cfg, log)
+	if err != nil {
+		panic("failed to initialize mail relay daemon")
+	}
+	defer sender.Close()
 
 	sqls, err := config.NewSqls("mysql")
 	if err != nil {
@@ -62,7 +69,7 @@ func main() {
 	}
 	log.Info("created redis authn store")
 
-	us := data.NewUserService(db, sqls, log, metrics)
+	us := data.NewUserService(db, sqls, sender, log, dbmtrx)
 	us.Validator = valid.NewValidator(authn, cfg, log)
 
 	srv := router.NewInstance(us, cfg, log)
@@ -106,9 +113,7 @@ func newMysql(cfg *config.Config) (*sql.DB, *prometheus.CounterVec, error) {
 		return nil, nil, err
 	}
 	return db, metrics.DataMetrics.MustCurryWith(prometheus.Labels{
-		"app": APP_NAME,
-		"db":  "mysql",
-		"pkg": "data",
+		"db": "mysql",
 	}), nil
 }
 

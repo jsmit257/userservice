@@ -13,6 +13,8 @@ use userservice;
 create table if not exists users(
   uuid          varchar(36)   not null primary key,
   name          varchar(128)  not null unique,
+  email         varchar(256)  null,
+  cell          varchar(20)   null, -- a phone number for txts and calls
   password      char(15)      not null,
   salt          char(4)       not null,
   loginsuccess  datetime      null     default current_timestamp,
@@ -21,7 +23,8 @@ create table if not exists users(
   locked        datetime      null,
   mtime         datetime      not null default current_timestamp,
   ctime         datetime      not null default current_timestamp,
-  dtime         datetime      null
+  dtime         datetime      null,
+  check         (1 or email is not null or cell is not null)
 ) engine=InnoDB;
 
 create table if not exists  addresses(
@@ -42,8 +45,6 @@ create table if not exists contacts(
   lastname     varchar(128)  not null,
   billto_uuid  varchar(36)   null,
   shipto_uuid  varchar(36)   null,
-  email        varchar(256)  null,
-  cell         varchar(20)   null, -- a phone number for txts and calls
   phone        varchar(20)   null, -- don't send text messages here
   mtime        datetime      not null default current_timestamp,
   ctime        datetime      not null default current_timestamp,

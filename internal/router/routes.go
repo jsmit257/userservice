@@ -1,17 +1,20 @@
 package router
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 
 	"github.com/jsmit257/userservice/internal/config"
+	"github.com/jsmit257/userservice/internal/maild"
 	"github.com/jsmit257/userservice/internal/metrics"
 	valid "github.com/jsmit257/userservice/internal/validation"
 	"github.com/jsmit257/userservice/shared/v1"
@@ -19,6 +22,7 @@ import (
 
 type (
 	UserService struct {
+		maild.Sender
 		shared.Addresser
 		shared.Auther
 		shared.Contacter
@@ -29,35 +33,10 @@ type (
 	sc int
 )
 
-var mtrcs = metrics.ServiceMetrics.MustCurryWith(prometheus.Labels{
-	"pkg": "router",
-	"app": "userservice",
-})
-
-func (sc sc) send(m *prometheus.CounterVec, w http.ResponseWriter, err error, messages ...string) {
-	m.WithLabelValues(strconv.Itoa(int(sc)), err.Error()).Inc()
-	w.WriteHeader(int(sc))
-	for _, m := range messages {
-		_, _ = w.Write([]byte(m))
-	}
-}
-
-func (sc sc) success(m *prometheus.CounterVec, w http.ResponseWriter, messages ...string) {
-	w.Header().Add("Content-Type", "application/json")
-	sc.send(m, w, fmt.Errorf("none"), messages...)
-}
-
-// func middleware(next http.Handler) http.Handler {
-// 	return http.HandlerFunc(next.ServeHTTP)
-// 	// return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-// 	// 	next.ServeHTTP(w, r)
-// 	// })
-// }
-
-func NewInstance(us *UserService, cfg *config.Config, logger *log.Entry) *http.Server {
+func NewInstance(us *UserService, cfg *config.Config, log *logrus.Entry) *http.Server {
 	r := chi.NewRouter()
 
-	// r.Use(middleware)
+	r.Use(wrapContext(log))
 
 	r.Get("/users", us.GetAllUsers)
 	r.Get("/user/{user_id}", us.GetUser)
@@ -76,10 +55,11 @@ func NewInstance(us *UserService, cfg *config.Config, logger *log.Entry) *http.S
 	r.Get("/auth/{username}", us.GetAuth)
 	r.Post("/auth", us.PostLogin)
 	r.Patch("/auth/{user_id}", us.PatchLogin)
-	// r.Delete("/auth/{user_id}", us.DeleteLogin) // wip.
+	r.Delete("/auth", us.DeleteLogin)
 
 	r.Post("/logout", us.PostLogout)
 	r.Get("/valid", us.GetValid)
+	r.Get("/otp/{pad}", us.GetValidOTP)
 
 	r.Get("/hc", hc)
 
@@ -97,11 +77,88 @@ func hc(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte("OK"))
 }
 
+// shamelessly copied from https://github.com/go-chi/chi/issues/270#issuecomment-479184559
+func getRoutePattern(r *http.Request) string {
+	rctx := chi.RouteContext(r.Context())
+	if pattern := rctx.RoutePattern(); pattern != "" {
+		return "!" + pattern // leaving the bang to see if this ever happens (and how?)
+	}
+
+	routePath := r.URL.Path
+	if r.URL.RawPath != "" {
+		routePath = r.URL.RawPath
+	}
+
+	tctx := chi.NewRouteContext()
+	if rctx.Routes.Match(tctx, r.Method, routePath) {
+		return tctx.RoutePattern()
+	}
+
+	// better than logging or panicing, as long as it never happens
+	return "!!" + routePath
+}
+
+func wrapContext(e *logrus.Entry) func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			cid := shared.CID(uuid.NewString())
+
+			e = e.WithFields(logrus.Fields{
+				"method": r.Method,
+				"remote": r.RemoteAddr,
+				"start":  start.String(),
+				"url":    r.RequestURI, // this, or getRoutePattern and fill in the blanks with more fields?
+				"us-cid": cid,
+			})
+
+			m := metrics.ServiceMetrics.MustCurryWith(prometheus.Labels{
+				"proto":  r.Proto,
+				"method": r.Method,
+				"url":    getRoutePattern(r),
+			})
+
+			w.Header().Set("us-cid", string(cid))
+			r = r.WithContext(context.WithValue(r.Context(), shared.CTXKey("cid"), cid))
+			r = r.WithContext(context.WithValue(r.Context(), shared.CTXKey("log"), e))
+			r = r.WithContext(context.WithValue(r.Context(), shared.CTXKey("metrics"), m))
+
+			e.Info("started request")
+
+			next.ServeHTTP(w, r)
+
+			e.WithField("duration", time.Since(start).String()).Info("finished request")
+		})
+	}
+}
+
+func (sc sc) send(ctx context.Context, w http.ResponseWriter, err error, messages ...string) {
+	l := ctx.Value(shared.CTXKey("log")).(*logrus.Entry)
+	if err != nil {
+		l = l.WithError(err)
+		// if len(messages) == 0 {
+		// 	messages = append(messages, err.Error())
+		// }
+	}
+	l.Info("sending status code and messages")
+
+	ctx.
+		Value(shared.CTXKey("metrics")).(*prometheus.CounterVec).
+		WithLabelValues(strconv.Itoa(int(sc))).
+		Inc()
+
+	w.WriteHeader(int(sc))
+	for _, m := range messages {
+		_, _ = w.Write([]byte(m))
+	}
+}
+
+func (sc sc) success(ctx context.Context, w http.ResponseWriter, messages ...string) {
+	w.Header().Add("Content-Type", "application/json")
+	sc.send(ctx, w, fmt.Errorf("none"), messages...)
+}
+
 func mustJSON(a any) string {
 	response, _ := json.Marshal(a)
 	return string(response)
-}
-
-func cid() shared.CID {
-	return shared.CID(uuid.NewString())
 }

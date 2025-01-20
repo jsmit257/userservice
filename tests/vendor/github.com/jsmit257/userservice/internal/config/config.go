@@ -15,6 +15,11 @@ type Config struct {
 	RedisHost string `envconfig:"REDIS_HOST" default:"redis" json:"redis_host"`
 	RedisPort int16  `envconfig:"REDIS_PORT" default:"6379" json:"redis_port"`
 
+	MaildHost string `envconfig:"MAILD_HOST" default:"mail.google.com" json:"maild_host,omitempty"`
+	MaildPort uint16 `envconfig:"MAILD_PORT" default:"587" json:"maild_port,omitempty"`
+	MaildUser string `envconfig:"MAILD_USER" default:"svc" json:"maild_user,omitempty"`
+	MaildPass string `envconfig:"MAILD_PASS" default:"snakeoil" json:"-"`
+
 	AuthnTimeout int64  `envconfig:"AUTHN_TIMEOUT" default:"15" json:"authn_timeout"`
 	MaxLogins    int    `envconfig:"MAX_LOGINS" default:"5" json:"max_logins"`
 	CookieName   string `envconfig:"AUTHN_COOKIE" default:"us-authn" json:"authn_cookie"`

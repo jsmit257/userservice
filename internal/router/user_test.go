@@ -64,7 +64,7 @@ func Test_GetAllUsers(t *testing.T) {
 			w := httptest.NewRecorder()
 			r, _ := http.NewRequestWithContext(
 				context.WithValue(
-					context.Background(),
+					mockContext(),
 					chi.RouteCtxKey,
 					chi.NewRouteContext()),
 				http.MethodGet,
@@ -125,7 +125,7 @@ func Test_GetUser(t *testing.T) {
 			rctx.URLParams = chi.RouteParams{Keys: []string{"user_id"}, Values: tc.userIDs}
 			r, _ := http.NewRequestWithContext(
 				context.WithValue(
-					context.Background(),
+					mockContext(),
 					chi.RouteCtxKey,
 					rctx),
 				http.MethodGet,
@@ -222,7 +222,7 @@ func Test_PostUser(t *testing.T) {
 
 			r, _ := http.NewRequestWithContext(
 				context.WithValue(
-					context.Background(),
+					mockContext(),
 					chi.RouteCtxKey,
 					chi.NewRouteContext()),
 				http.MethodPost,
@@ -291,7 +291,7 @@ func Test_PatchUser(t *testing.T) {
 			rctx.URLParams = chi.RouteParams{Keys: []string{"user_id"}, Values: tc.userIDs}
 			r, _ := http.NewRequestWithContext(
 				context.WithValue(
-					context.Background(),
+					mockContext(),
 					chi.RouteCtxKey,
 					rctx),
 				http.MethodPatch,
@@ -333,7 +333,7 @@ func Test_DeleteUser(t *testing.T) {
 			w := httptest.NewRecorder()
 			r, _ := http.NewRequestWithContext(
 				context.WithValue(
-					context.Background(),
+					mockContext(),
 					chi.RouteCtxKey,
 					chi.NewRouteContext()),
 				http.MethodGet,
@@ -358,6 +358,7 @@ func Test_CreateContact(t *testing.T) {
 		sc      int
 	}{
 		"happy_path": {
+			userid: "create_contact",
 			u: &mockUserer{
 				user:              &shared.User{},
 				createContactResp: &shared.Contact{},
@@ -366,21 +367,29 @@ func Test_CreateContact(t *testing.T) {
 			sc:      http.StatusOK,
 		},
 		"get_user_fails": {
-			u:  &mockUserer{userErr: fmt.Errorf("some error")},
-			sc: http.StatusBadRequest,
+			userid: "create_contact",
+			u:      &mockUserer{userErr: fmt.Errorf("some error")},
+			sc:     http.StatusBadRequest,
 		},
-		"read_fails": {
+		"param_fails": {
 			u:  &mockUserer{user: &shared.User{}},
 			sc: http.StatusBadRequest,
 		},
+		"read_fails": {
+			userid: "create_contact",
+			u:      &mockUserer{user: &shared.User{}},
+			sc:     http.StatusBadRequest,
+		},
 		"unmarshal_fails": {
+			userid:  "create_contact",
 			u:       &mockUserer{user: &shared.User{}},
 			contact: &shared.Contact{},
 			sc:      http.StatusBadRequest,
 		},
 		"create_contact_fails": {
-			u:  &mockUserer{createContactErr: fmt.Errorf("some error")},
-			sc: http.StatusInternalServerError,
+			userid: "create_contact",
+			u:      &mockUserer{createContactErr: fmt.Errorf("some error")},
+			sc:     http.StatusInternalServerError,
 		},
 	}
 
@@ -406,7 +415,7 @@ func Test_CreateContact(t *testing.T) {
 			rctx.URLParams = chi.RouteParams{Keys: []string{"user_id"}, Values: []string{string(tc.userid)}}
 			r, _ := http.NewRequestWithContext(
 				context.WithValue(
-					context.Background(),
+					mockContext(),
 					chi.RouteCtxKey,
 					rctx),
 				http.MethodGet,
@@ -425,21 +434,21 @@ func userToBody(u *shared.User) string {
 	return string(result)
 }
 
-func (mu *mockUserer) GetAllUsers(context.Context, shared.CID) ([]shared.User, error) {
+func (mu *mockUserer) GetAllUsers(context.Context) ([]shared.User, error) {
 	return mu.users, mu.getUsersErr
 }
-func (mu *mockUserer) GetUser(ctx context.Context, id shared.UUID, cid shared.CID) (*shared.User, error) {
+func (mu *mockUserer) GetUser(context.Context, shared.UUID) (*shared.User, error) {
 	return mu.user, mu.userErr
 }
-func (mu *mockUserer) AddUser(ctx context.Context, u *shared.User, cid shared.CID) (shared.UUID, error) {
+func (mu *mockUserer) AddUser(context.Context, *shared.User) (shared.UUID, error) {
 	return mu.postUserResp.UUID, mu.postUserErr
 }
-func (mu *mockUserer) UpdateUser(ctx context.Context, u *shared.User, cid shared.CID) error {
+func (mu *mockUserer) UpdateUser(context.Context, *shared.User) error {
 	return mu.patchUserErr
 }
-func (mu *mockUserer) CreateContact(ctx context.Context, u *shared.User, c shared.Contact, cid shared.CID) (*shared.Contact, error) {
+func (mu *mockUserer) CreateContact(context.Context, *shared.User, shared.Contact) (*shared.Contact, error) {
 	return mu.createContactResp, mu.createContactErr
 }
-func (mu *mockUserer) DeleteUser(ctx context.Context, id shared.UUID, cid shared.CID) error { // unused
+func (mu *mockUserer) DeleteUser(context.Context, shared.UUID) error { // unused
 	return mu.rmUserErr
 }

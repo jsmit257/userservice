@@ -1,6 +1,7 @@
 package data
 
 import (
+	"context"
 	"database/sql"
 	"database/sql/driver"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
+	"github.com/go-gomail/gomail"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
@@ -26,17 +28,25 @@ type (
 		val any
 	}
 
+	senderMock struct {
+		msgs uint
+		err  error
+	}
+
 	getMockDB func(*sql.DB, sqlmock.Sqlmock, error) *sql.DB
 )
 
 var (
 	rightaboutnow = time.Now().UTC()
 	testmetrics   = metrics.DataMetrics.MustCurryWith(prometheus.Labels{
-		"app": "APP_NAME",
-		"db":  "quien sabes",
-		"pkg": "data",
+		"db": "quien sabes",
 	})
 )
+
+func Test_NewUserService(t *testing.T) {
+	result := NewUserService(nil, nil, nil, nil, nil)
+	require.NotNil(t, result)
+}
 
 func (v values) nil(ord ...uint) values {
 	for _, o := range ord {
@@ -56,11 +66,6 @@ func (v values) replace(r ...repl) values {
 	return result
 }
 
-func Test_NewUserService(t *testing.T) {
-	result := NewUserService(nil, nil, nil, nil)
-	require.NotNil(t, result)
-}
-
 func mockUUIDGen() shared.UUID {
 	return shared.UUID(uuid.Must(uuid.FromBytes([]byte("0123456789abcdef"))).String())
 }
@@ -76,6 +81,34 @@ func mockSqls() config.Sqls {
 	}
 	return result
 }
+
+func mockContext(cid shared.CID) context.Context {
+	return context.WithValue(
+		context.WithValue(
+			context.WithValue(
+				context.Background(),
+				shared.CTXKey("log"),
+				logrus.WithField("app", "test"),
+			),
+			shared.CTXKey("metrics"),
+			metrics.ServiceMetrics.MustCurryWith(prometheus.Labels{
+				"proto":  "test",
+				"method": "test",
+				"url":    "test",
+			}),
+		),
+		shared.CTXKey("cid"),
+		cid,
+	)
+}
+
+func (sm *senderMock) Send(m *gomail.Message) error {
+	sm.msgs++
+
+	return sm.err
+}
+
+func (sm *senderMock) Close() {}
 
 func testLogger(_ *testing.T, fields logrus.Fields) *logrus.Entry {
 	return (&logrus.Logger{

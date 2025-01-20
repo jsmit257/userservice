@@ -7,10 +7,12 @@ import (
 	"github.com/jsmit257/userservice/shared/v1"
 )
 
-var maxfailure uint8 = 3 // config value
+var (
+	maxfailure uint8 = 3 // config value
+)
 
-func (db *Conn) GetAuthByAttrs(ctx context.Context, id *shared.UUID, name *string, cid shared.CID) (*shared.BasicAuth, error) {
-	done, log := db.logging("GetAuthByAttrs", id, cid)
+func (db *Conn) GetAuthByAttrs(ctx context.Context, id *shared.UUID, name *string) (*shared.BasicAuth, error) {
+	done, log := db.logging("GetAuthByAttrs", id, ctx.Value(shared.CTXKey("cid")).(shared.CID))
 
 	result := &shared.BasicAuth{}
 	err := db.QueryRowContext(ctx, db.sqls["basic-auth"]["select"], id, name).Scan(
@@ -27,10 +29,10 @@ func (db *Conn) GetAuthByAttrs(ctx context.Context, id *shared.UUID, name *strin
 	return result, done(err, log)
 }
 
-func (db *Conn) ChangePassword(ctx context.Context, old, new *shared.BasicAuth, cid shared.CID) error {
-	done, log := db.logging("ChangePassword", old.UUID, cid)
+func (db *Conn) ChangePassword(ctx context.Context, old, new *shared.BasicAuth) error {
+	done, log := db.logging("ChangePassword", old.UUID, ctx.Value(shared.CTXKey("cid")).(shared.CID))
 
-	auth, err := db.Login(ctx, old, cid)
+	auth, err := db.Login(ctx, old)
 	if err != nil {
 		return done(err, log)
 	} else if err = validate(auth.Name, new.Pass, auth.Pass, auth.Salt); err != nil {
@@ -44,16 +46,16 @@ func (db *Conn) ChangePassword(ctx context.Context, old, new *shared.BasicAuth, 
 	auth.LoginSuccess = &now
 	auth.FailureCount = 0
 
-	err = db.updateBasicAuth(ctx, auth, cid)
+	err = db.updateBasicAuth(ctx, auth)
 
 	return done(err, log)
 }
 
-func (db *Conn) Login(ctx context.Context, login *shared.BasicAuth, cid shared.CID) (*shared.BasicAuth, error) {
-	done, log := db.logging("Login", login.UUID, cid)
+func (db *Conn) Login(ctx context.Context, login *shared.BasicAuth) (*shared.BasicAuth, error) {
+	done, log := db.logging("Login", login.UUID, ctx.Value(shared.CTXKey("cid")).(shared.CID))
 
 	now := time.Now().UTC()
-	result, err := db.GetAuthByAttrs(ctx, &login.UUID, nil, cid)
+	result, err := db.GetAuthByAttrs(ctx, &login.UUID, nil)
 	if err != nil {
 		return result, done(err, log)
 	} else if result.FailureCount > maxfailure {
@@ -69,7 +71,6 @@ func (db *Conn) Login(ctx context.Context, login *shared.BasicAuth, cid shared.C
 				LoginFailure: &now,
 				FailureCount: result.FailureCount + 1,
 			},
-			cid,
 		); err == nil {
 			err = shared.PasswordsMatch
 		}
@@ -83,7 +84,6 @@ func (db *Conn) Login(ctx context.Context, login *shared.BasicAuth, cid shared.C
 			LoginFailure: result.LoginFailure,
 			FailureCount: 0,
 		},
-		cid,
 	); err == nil {
 		result.LoginSuccess = &now
 	}
@@ -91,22 +91,13 @@ func (db *Conn) Login(ctx context.Context, login *shared.BasicAuth, cid shared.C
 	return result, done(err, log)
 }
 
-func (db *Conn) ResetPassword(ctx context.Context, id *shared.UUID, cid shared.CID) error {
-	done, log := db.logging("ResetPassword", id, cid)
+func (db *Conn) ResetPassword(ctx context.Context, id *shared.UUID) error {
+	done, log := db.logging("ResetPassword", id, ctx.Value(shared.CTXKey("cid")).(shared.CID))
 
-	auth, err := db.GetAuthByAttrs(ctx, id, nil, cid)
+	auth, err := db.GetAuthByAttrs(ctx, id, nil)
 	if err != nil {
 		return done(err, log)
 	}
-
-	// // use contact info to send a reset link; send it where?? need to add
-	// // more to the reset request; means maybe including more in the message
-	// // body, like a phone# to test against, and send a login link; not
-	// // quite MFA
-	// user, err := db.GetUser(ctx, *id, cid)
-	// if err != nil {
-	// 	return done(err, log)
-	// }
 
 	now := time.Now().UTC()
 
@@ -115,13 +106,16 @@ func (db *Conn) ResetPassword(ctx context.Context, id *shared.UUID, cid shared.C
 	auth.LoginSuccess = &now
 	auth.FailureCount = 0
 
-	err = db.updateBasicAuth(ctx, auth, cid)
+	err = db.updateBasicAuth(ctx, auth)
+	if err != nil {
+		return done(err, log)
+	}
 
 	return done(err, log)
 }
 
-func (db *Conn) updateBasicAuth(ctx context.Context, login *shared.BasicAuth, cid shared.CID) error {
-	done, log := db.logging("Login", nil, cid)
+func (db *Conn) updateBasicAuth(ctx context.Context, login *shared.BasicAuth) error {
+	done, log := db.logging("Login", nil, ctx.Value(shared.CTXKey("cid")).(shared.CID))
 
 	result, err := db.ExecContext(ctx, db.sqls["basic-auth"]["update"],
 		login.Pass,

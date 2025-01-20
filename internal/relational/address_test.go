@@ -1,17 +1,15 @@
 package data
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"testing"
 
-	"github.com/jsmit257/userservice/shared/v1"
-	log "github.com/sirupsen/logrus"
-
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
-
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jsmit257/userservice/shared/v1"
 )
 
 var (
@@ -53,7 +51,7 @@ var (
 func TestGetAllAddresses(t *testing.T) {
 	t.Parallel()
 
-	l := testLogger(t, log.Fields{"app": "address_test.go", "test": "TestGetAllAddresses"})
+	l := testLogger(t, logrus.Fields{"app": "address_test.go", "test": "TestGetAllAddresses"})
 
 	tcs := map[string]struct {
 		mockDB getMockDB
@@ -89,9 +87,10 @@ func TestGetAllAddresses(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				nil,
 				mockSqls(),
+				&senderMock{},
 				l,
 				testmetrics,
-			}).GetAllAddresses(context.Background(), cid)
+			}).GetAllAddresses(mockContext(cid))
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.addr, addr)
 		})
@@ -101,7 +100,7 @@ func TestGetAllAddresses(t *testing.T) {
 func TestGetAddress(t *testing.T) {
 	t.Parallel()
 
-	l := testLogger(t, log.Fields{"app": "address_test.go", "test": "TestGetAddress"})
+	l := testLogger(t, logrus.Fields{"app": "address_test.go", "test": "TestGetAddress"})
 
 	tcs := map[string]struct {
 		mockDB getMockDB
@@ -136,9 +135,10 @@ func TestGetAddress(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				nil,
 				mockSqls(),
+				&senderMock{},
 				l,
 				testmetrics,
-			}).GetAddress(context.Background(), "1", cid)
+			}).GetAddress(mockContext(cid), "1")
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.result, addr)
 		})
@@ -148,7 +148,7 @@ func TestGetAddress(t *testing.T) {
 func TestAddAddress(t *testing.T) {
 	t.Parallel()
 
-	l := testLogger(t, log.Fields{"app": "address_test.go", "test": "TestAddAddress"})
+	l := testLogger(t, logrus.Fields{"app": "address_test.go", "test": "TestAddAddress"})
 
 	tcs := map[string]struct {
 		mockDB getMockDB
@@ -193,9 +193,10 @@ func TestAddAddress(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				mockUUIDGen,
 				mockSqls(),
+				&senderMock{},
 				l,
 				testmetrics,
-			}).AddAddress(context.Background(), tc.addr, cid)
+			}).AddAddress(mockContext(cid), tc.addr)
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.result, uuid)
 		})
@@ -205,7 +206,7 @@ func TestAddAddress(t *testing.T) {
 func TestUpdateAddress(t *testing.T) {
 	t.Parallel()
 
-	l := testLogger(t, log.Fields{"app": "address_test.go", "test": "TestUpdateAddress"})
+	l := testLogger(t, logrus.Fields{"app": "address_test.go", "test": "TestUpdateAddress"})
 
 	tcs := map[string]struct {
 		mockDB getMockDB
@@ -246,9 +247,10 @@ func TestUpdateAddress(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				nil,
 				mockSqls(),
+				&senderMock{},
 				l,
 				testmetrics,
-			}).UpdateAddress(context.Background(), tc.addr, cid))
+			}).UpdateAddress(mockContext(cid), tc.addr))
 		})
 	}
 }

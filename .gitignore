@@ -1,3 +1,7 @@
 log.json
+
 .data
+
+!/bin/env/template
+/bin/env
 

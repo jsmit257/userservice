@@ -68,7 +68,7 @@ func Test_PatchContact(t *testing.T) {
 			rctx.URLParams = chi.RouteParams{Keys: []string{"user_id"}, Values: []string{string(tc.userid)}}
 			r, _ := http.NewRequestWithContext(
 				context.WithValue(
-					context.Background(),
+					mockContext(),
 					chi.RouteCtxKey,
 					rctx),
 				http.MethodGet,
@@ -87,6 +87,6 @@ func contactToBody(c *shared.Contact) string {
 	return string(result)
 }
 
-func (mc *mockContacter) UpdateContact(context.Context, shared.UUID, *shared.Contact, shared.CID) error {
+func (mc *mockContacter) UpdateContact(context.Context, shared.UUID, *shared.Contact) error {
 	return mc.updResp
 }

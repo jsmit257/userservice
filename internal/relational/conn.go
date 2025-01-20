@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/jsmit257/userservice/internal/config"
+	"github.com/jsmit257/userservice/internal/maild"
 	"github.com/jsmit257/userservice/internal/router"
 	"github.com/jsmit257/userservice/shared/v1"
 )
@@ -20,6 +21,7 @@ type (
 		query
 		uuidgen
 		sqls    config.Sqls
+		mx      maild.Sender
 		log     *logrus.Entry
 		metrics *prometheus.CounterVec
 	}
@@ -37,8 +39,8 @@ type (
 	userVec struct{ *prometheus.CounterVec }
 )
 
-func NewUserService(db *sql.DB, sqls config.Sqls, l *logrus.Entry, m *prometheus.CounterVec) *router.UserService {
-	conn := &Conn{db, uuidGen, sqls, l, m}
+func NewUserService(db *sql.DB, sqls config.Sqls, mx maild.Sender, l *logrus.Entry, m *prometheus.CounterVec) *router.UserService {
+	conn := &Conn{db, uuidGen, sqls, mx, l, m}
 	return &router.UserService{
 		Addresser: conn,
 		Auther:    conn,

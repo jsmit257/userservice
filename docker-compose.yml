@@ -7,12 +7,16 @@ x-redis-user: &redis-user redis
 x-redis-pass: &redis-pass redis
 x-redis-host: &redis-host redis
 x-redis-port: &redis-port 6379
+x-maild-host: &maild-host cffc-io
+x-maild-port: &maild-port 25
 x-http-host: &http-host servicetester
 x-http-port: &http-port 3000
 # FYI: mysql has permission problems with whomever owns this volume
 # locally, and using `chown` inside Dockerfile resolves to the local 
 # system's mysql user ID, not the service's; long story short, use 
-# `chown 1001:1001 ./.data` on the local host
+# `chown 1001:1001 ./.data` on the local host, or some combination of
+# `usermod` and `find -uid ??? -exec chown <local uid>:<local gid> "{}" \;`
+# in Dockerfile.mysql
 x-persist-volumes: &standalone-volumes
   - ./.data:/var/lib/mysql
 
@@ -69,15 +73,27 @@ services:
     hostname: *redis-host
     ports: [ 6666:6379 ]
 
+  maild:
+    image: bytemark/smtp
+    restart: always
+    hostname: *maild-host
+    env_file:
+      - ./bin/env/template
+      - ./bin/env/system
+
   serve-mysql:
     # the main service, requires some database (we don't know which, so we
     # can't set it here) and of course, redis is just redis
-    depends_on: [ redis ]
+    depends_on:
+      - redis
+      - maild
     image: jsmit257/us-srv-mysql:latest
     build: .
     hostname: *http-host
     ports: [ 3000:3000 ]
     environment:
+      US_MAILD_HOST: *maild-host
+      US_MAILD_PORT: *maild-port
       US_MYSQL_HOST: *mysql-host
       US_MYSQL_PORT: *mysql-port
       US_MYSQL_USER: *mysql-user

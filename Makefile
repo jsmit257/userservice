@@ -24,6 +24,8 @@ serve-mysql:
 
 .PHONY: system-test
 system-test: unit down mysql-test serve-mysql
+	echo "sleeping while mail connects"
+	sleep 1s
 	./bin/test-integration
 
 .PHONY: web-test

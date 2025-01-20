@@ -14,7 +14,12 @@ var (
 	BadUserOrPassError  = fmt.Errorf("bad username or password")
 	MaxFailedLoginError = fmt.Errorf("too many failed login attempts")
 	MissingAuthToken    = fmt.Errorf("missing auth token")
-	RedisTokenFail      = fmt.Errorf("failed redis login token")
+
+	RedisTokenFail = fmt.Errorf("failed redis login token")
+
+	MissingParams = fmt.Errorf("parameter missing from URL")
 
 	PasswordsMatch = fmt.Errorf("passwords match")
+
+	Undeliverable = fmt.Errorf("there is no way to send this user reset data")
 )

@@ -5,20 +5,20 @@ import (
 	"fmt"
 	"time"
 
-	sharedv1 "github.com/jsmit257/userservice/shared/v1"
+	"github.com/jsmit257/userservice/shared/v1"
 )
 
-func (db *Conn) GetAllAddresses(ctx context.Context, cid sharedv1.CID) ([]sharedv1.Address, error) {
-	done, log := db.logging("GetAllAddresses", nil, cid)
+func (db *Conn) GetAllAddresses(ctx context.Context) ([]shared.Address, error) {
+	done, log := db.logging("GetAllAddresses", nil, ctx.Value(shared.CTXKey("cid")).(shared.CID))
 
 	rows, err := db.QueryContext(ctx, db.sqls["address"]["select-all"])
 	if err != nil {
 		return nil, done(err, log)
 	}
 
-	result := []sharedv1.Address{}
+	result := []shared.Address{}
 	for rows.Next() {
-		row := sharedv1.Address{}
+		row := shared.Address{}
 		if err = rows.Scan(
 			&row.UUID,
 			&row.Street1,
@@ -38,10 +38,10 @@ func (db *Conn) GetAllAddresses(ctx context.Context, cid sharedv1.CID) ([]shared
 	return result, done(err, log)
 }
 
-func (db *Conn) GetAddress(ctx context.Context, id sharedv1.UUID, cid sharedv1.CID) (*sharedv1.Address, error) {
-	done, log := db.logging("GetAddress", id, cid)
+func (db *Conn) GetAddress(ctx context.Context, id shared.UUID) (*shared.Address, error) {
+	done, log := db.logging("GetAddress", id, ctx.Value(shared.CTXKey("cid")).(shared.CID))
 
-	result := &sharedv1.Address{}
+	result := &shared.Address{}
 	err := db.
 		QueryRowContext(ctx, db.sqls["address"]["select"], id).
 		Scan(
@@ -62,8 +62,8 @@ func (db *Conn) GetAddress(ctx context.Context, id sharedv1.UUID, cid sharedv1.C
 	return result, done(err, log)
 }
 
-func (db *Conn) AddAddress(ctx context.Context, addr *sharedv1.Address, cid sharedv1.CID) (sharedv1.UUID, error) {
-	done, log := db.logging("AddAddress", addr, cid)
+func (db *Conn) AddAddress(ctx context.Context, addr *shared.Address) (shared.UUID, error) {
+	done, log := db.logging("AddAddress", addr, ctx.Value(shared.CTXKey("cid")).(shared.CID))
 
 	now := time.Now().UTC()
 	addr.UUID, addr.MTime, addr.CTime =
@@ -92,8 +92,8 @@ func (db *Conn) AddAddress(ctx context.Context, addr *sharedv1.Address, cid shar
 	return addr.UUID, done(err, log)
 }
 
-func (db *Conn) UpdateAddress(ctx context.Context, addr *sharedv1.Address, cid sharedv1.CID) error {
-	done, log := db.logging("UpdateAddress", addr, cid)
+func (db *Conn) UpdateAddress(ctx context.Context, addr *shared.Address) error {
+	done, log := db.logging("UpdateAddress", addr, ctx.Value(shared.CTXKey("cid")).(shared.CID))
 
 	now := time.Now().UTC()
 
@@ -110,7 +110,7 @@ func (db *Conn) UpdateAddress(ctx context.Context, addr *sharedv1.Address, cid s
 	var rows int64
 	if err == nil {
 		if rows, err = result.RowsAffected(); err == nil && rows != 1 {
-			err = sharedv1.AddressNotUpdatedError
+			err = shared.AddressNotUpdatedError
 		}
 	}
 

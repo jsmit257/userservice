@@ -10,8 +10,8 @@ import (
 	"github.com/jsmit257/userservice/shared/v1"
 )
 
-func (db *Conn) getContact(ctx context.Context, id shared.UUID, cid shared.CID) (*shared.Contact, error) {
-	done, log := db.logging("getContact", id, cid)
+func (db *Conn) getContact(ctx context.Context, id shared.UUID) (*shared.Contact, error) {
+	done, log := db.logging("getContact", id, ctx.Value(shared.CTXKey("cid")).(shared.CID))
 
 	var billto, shipto *shared.UUID
 	result := &shared.Contact{}
@@ -26,11 +26,11 @@ func (db *Conn) getContact(ctx context.Context, id shared.UUID, cid shared.CID) 
 
 	if err == nil {
 		if billto != nil {
-			result.BillTo, err = db.GetAddress(ctx, *billto, cid)
+			result.BillTo, err = db.GetAddress(ctx, *billto)
 		}
 
 		if err == nil && shipto != nil {
-			result.ShipTo, err = db.GetAddress(ctx, *shipto, cid)
+			result.ShipTo, err = db.GetAddress(ctx, *shipto)
 		}
 	} else {
 		result = nil
@@ -42,9 +42,9 @@ func (db *Conn) getContact(ctx context.Context, id shared.UUID, cid shared.CID) 
 	return result, done(err, log)
 }
 
-func (db *Conn) addContact(ctx context.Context, id shared.UUID, c shared.Contact, cid shared.CID) (*shared.Contact, error) {
+func (db *Conn) addContact(ctx context.Context, id shared.UUID, c shared.Contact) (*shared.Contact, error) {
 	var err error
-	done, log := db.logging("addContact", id, cid)
+	done, log := db.logging("addContact", id, ctx.Value(shared.CTXKey("cid")).(shared.CID))
 
 	if id == "" {
 		return nil, fmt.Errorf("contacts require a valid user")
@@ -80,9 +80,9 @@ func (db *Conn) addContact(ctx context.Context, id shared.UUID, c shared.Contact
 	return &c, done(err, log)
 }
 
-func (db *Conn) UpdateContact(ctx context.Context, id shared.UUID, c *shared.Contact, cid shared.CID) error {
+func (db *Conn) UpdateContact(ctx context.Context, id shared.UUID, c *shared.Contact) error {
 	var err error
-	done, log := db.logging("UpdateContact", id, cid)
+	done, log := db.logging("UpdateContact", id, ctx.Value(shared.CTXKey("cid")).(shared.CID))
 
 	billto := (*shared.UUID)(nil)
 	if c.BillTo != nil {

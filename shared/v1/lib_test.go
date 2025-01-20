@@ -103,3 +103,83 @@ func Test_CheckValid(t *testing.T) {
 		})
 	}
 }
+
+func Test_CheckOTP(t *testing.T) {
+	t.Parallel()
+
+	tcs := map[string]struct {
+		host     string
+		port     uint16
+		pad      string
+		sc       int
+		response *http.Cookie
+		status   int
+	}{
+		"happy_path": {
+			host: "Test_CheckOTP",
+			port: 1,
+			pad:  "1",
+			sc:   http.StatusFound,
+			response: &http.Cookie{
+				Name:       "us-authn",
+				Value:      "Test_CheckOTP",
+				Expires:    now.Truncate(time.Second),
+				RawExpires: now.In(time.FixedZone("GMT", 0)).Format(time.RFC1123),
+				MaxAge:     900,
+				HttpOnly:   true,
+			},
+			status: http.StatusFound,
+		},
+		"forbidden": {
+			host:   "Test_CheckOTP",
+			port:   1,
+			pad:    "",
+			sc:     http.StatusForbidden,
+			status: http.StatusForbidden,
+		},
+		"tx_empty_cookie": {
+			host: "Test_CheckOTP",
+			port: 1,
+			pad:  "1",
+			sc:   http.StatusNoContent,
+			response: &http.Cookie{
+				Name:       "us-authn",
+				Value:      "Test_CheckOTP",
+				Expires:    now.Truncate(time.Second),
+				RawExpires: now.In(time.FixedZone("GMT", 0)).Format(time.RFC1123),
+				MaxAge:     900,
+				HttpOnly:   true,
+			},
+			status: http.StatusForbidden,
+		},
+	}
+
+	for name, tc := range tcs {
+		// name, tc := name, tc // do NOT parallelize
+
+		t.Run(name, func(t *testing.T) {
+			// tc.cookie.Raw = tc.cookie.String()
+			// srv := httpmock.NewMockTransport()
+			httpmock.RegisterResponder(http.MethodGet,
+				fmt.Sprintf("http://%s:%d/otp/%s", tc.host, tc.port, tc.pad),
+				func(r *http.Request) (*http.Response, error) {
+					resp := httpmock.NewBytesResponse(tc.sc, nil)
+					resp.Header.Set("Set-Cookie", tc.response.String())
+					return resp, nil
+				})
+			httpmock.Activate()
+			defer httpmock.Deactivate()
+
+			response, err := CheckOTP(tc.host, tc.port, tc.pad)
+			require.Equal(t, tc.status, err)
+			if response != nil {
+				require.Equal(t, tc.response.Value, response.Value)
+				require.Equal(t, tc.response.Expires, response.Expires)
+				require.Equal(t, tc.response.MaxAge, response.MaxAge)
+				require.Equal(t, tc.response.HttpOnly, response.HttpOnly)
+			} else {
+				require.Nil(t, response)
+			}
+		})
+	}
+}

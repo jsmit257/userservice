@@ -62,7 +62,7 @@ func Test_GetAllGetAllAddresses(t *testing.T) {
 			w := httptest.NewRecorder()
 			r, _ := http.NewRequestWithContext(
 				context.WithValue(
-					context.Background(),
+					mockContext(),
 					chi.RouteCtxKey,
 					chi.NewRouteContext()),
 				http.MethodGet,
@@ -123,7 +123,7 @@ func Test_GetAddress(t *testing.T) {
 			rctx.URLParams = chi.RouteParams{Keys: []string{"user_id"}, Values: tc.userid}
 			r, _ := http.NewRequestWithContext(
 				context.WithValue(
-					context.Background(),
+					mockContext(),
 					chi.RouteCtxKey,
 					rctx),
 				http.MethodGet,
@@ -199,7 +199,7 @@ func Test_PostAddress(t *testing.T) {
 			w := httptest.NewRecorder()
 			r, _ := http.NewRequestWithContext(
 				context.WithValue(
-					context.Background(),
+					mockContext(),
 					chi.RouteCtxKey,
 					chi.NewRouteContext()),
 				http.MethodPost,
@@ -268,7 +268,7 @@ func Test_PatchAddress(t *testing.T) {
 
 			r, _ := http.NewRequestWithContext(
 				context.WithValue(
-					context.Background(),
+					mockContext(),
 					chi.RouteCtxKey,
 					rctx),
 				http.MethodPatch,
@@ -287,15 +287,15 @@ func addressToBody(a *shared.Address) string {
 	return string(result)
 }
 
-func (ma *mockAddresser) GetAllAddresses(context.Context, shared.CID) ([]shared.Address, error) {
+func (ma *mockAddresser) GetAllAddresses(context.Context) ([]shared.Address, error) {
 	return ma.allResp, ma.allErr
 }
-func (ma *mockAddresser) GetAddress(context.Context, shared.UUID, shared.CID) (*shared.Address, error) {
+func (ma *mockAddresser) GetAddress(context.Context, shared.UUID) (*shared.Address, error) {
 	return ma.getResp, ma.getErr
 }
-func (ma *mockAddresser) AddAddress(context.Context, *shared.Address, shared.CID) (shared.UUID, error) {
+func (ma *mockAddresser) AddAddress(context.Context, *shared.Address) (shared.UUID, error) {
 	return ma.addResp, ma.addErr
 }
-func (ma *mockAddresser) UpdateAddress(context.Context, *shared.Address, shared.CID) error {
+func (ma *mockAddresser) UpdateAddress(context.Context, *shared.Address) error {
 	return ma.updErr
 }

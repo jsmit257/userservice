@@ -1,7 +1,6 @@
 package data
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"testing"
@@ -149,9 +148,10 @@ func TestGetContact(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				nil,
 				mockSqls(),
+				&senderMock{},
 				l,
 				testmetrics,
-			}).getContact(context.Background(), "1", shared.CID("TestGetContact-"+name))
+			}).getContact(mockContext(shared.CID("TestGetContact-"+name)), "1")
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.result, contact)
 		})
@@ -217,9 +217,10 @@ func TestAddContact(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				mockUUIDGen,
 				mockSqls(),
+				&senderMock{},
 				l,
 				testmetrics,
-			}).addContact(context.Background(), tc.userid, tc.contact, shared.CID("TestAddContact-"+name))
+			}).addContact(mockContext(shared.CID("TestAddContact-"+name)), tc.userid, tc.contact)
 			require.Equal(t, tc.err, err)
 			// require.Equal(t, tc.result, result) // there's no way to match mtime/ctime
 		})
@@ -271,9 +272,10 @@ func TestUpdateContact(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				nil,
 				mockSqls(),
+				&senderMock{},
 				l,
 				testmetrics,
-			}).UpdateContact(context.Background(), tc.userid, tc.contact, shared.CID("TestUpdateContact-"+name)))
+			}).UpdateContact(mockContext(shared.CID("TestUpdateContact-"+name)), tc.userid, tc.contact))
 		})
 	}
 }

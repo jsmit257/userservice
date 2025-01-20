@@ -9,8 +9,8 @@ import (
 	"github.com/jsmit257/userservice/shared/v1"
 )
 
-func (db *Conn) GetAllUsers(ctx context.Context, cid shared.CID) ([]shared.User, error) {
-	done, log := db.logging("GetAllUsers", nil, cid)
+func (db *Conn) GetAllUsers(ctx context.Context) ([]shared.User, error) {
+	done, log := db.logging("GetAllUsers", nil, ctx.Value(shared.CTXKey("cid")).(shared.CID))
 
 	rows, err := db.QueryContext(ctx, db.sqls["user"]["select-all"])
 	if err != nil {
@@ -35,8 +35,8 @@ func (db *Conn) GetAllUsers(ctx context.Context, cid shared.CID) ([]shared.User,
 	return result, done(err, log)
 }
 
-func (db *Conn) GetUser(ctx context.Context, id shared.UUID, cid shared.CID) (*shared.User, error) {
-	done, log := db.logging("GetUser", id, cid)
+func (db *Conn) GetUser(ctx context.Context, id shared.UUID) (*shared.User, error) {
+	done, log := db.logging("GetUser", id, ctx.Value(shared.CTXKey("cid")).(shared.CID))
 
 	result := &shared.User{}
 	err := db.
@@ -44,21 +44,23 @@ func (db *Conn) GetUser(ctx context.Context, id shared.UUID, cid shared.CID) (*s
 		Scan(
 			&result.UUID,
 			&result.Name,
+			&result.Email,
+			&result.Cell,
 			&result.MTime,
 			&result.CTime,
 			&result.DTime)
 
 	if err != nil {
 		return nil, done(err, log)
-	} else if result.Contact, err = db.getContact(ctx, id, cid); err != nil {
+	} else if result.Contact, err = db.getContact(ctx, id); err != nil {
 		result = nil
 	}
 
 	return result, done(err, log)
 }
 
-func (db *Conn) AddUser(ctx context.Context, u *shared.User, cid shared.CID) (shared.UUID, error) {
-	done, log := db.logging("AddUser", u, cid)
+func (db *Conn) AddUser(ctx context.Context, u *shared.User) (shared.UUID, error) {
+	done, log := db.logging("AddUser", u, ctx.Value(shared.CTXKey("cid")).(shared.CID))
 
 	now := time.Now().UTC()
 	u.UUID = db.uuidgen()
@@ -77,7 +79,7 @@ func (db *Conn) AddUser(ctx context.Context, u *shared.User, cid shared.CID) (sh
 		switch v := err.(type) {
 		case *mysql.MySQLError:
 			if strings.Contains(v.Message, "users.PRIMARY") {
-				return db.AddUser(ctx, u, cid) // FIXME: handle infinite recursion (unlikely as it is)
+				return db.AddUser(ctx, u) // FIXME: handle infinite recursion (unlikely as it is)
 			} else if strings.Contains(v.Message, "users.name") {
 				err = shared.UserExistsError
 			}
@@ -88,8 +90,8 @@ func (db *Conn) AddUser(ctx context.Context, u *shared.User, cid shared.CID) (sh
 	return u.UUID, done(err, log)
 }
 
-func (db *Conn) UpdateUser(ctx context.Context, u *shared.User, cid shared.CID) error {
-	done, log := db.logging("UpdateUser", u, cid)
+func (db *Conn) UpdateUser(ctx context.Context, u *shared.User) error {
+	done, log := db.logging("UpdateUser", u, ctx.Value(shared.CTXKey("cid")).(shared.CID))
 
 	u.MTime = time.Now().UTC()
 	result, err := db.ExecContext(ctx, db.sqls["user"]["update"],
@@ -107,8 +109,8 @@ func (db *Conn) UpdateUser(ctx context.Context, u *shared.User, cid shared.CID) 
 	return done(err, log)
 }
 
-func (db *Conn) DeleteUser(ctx context.Context, id shared.UUID, cid shared.CID) error {
-	done, log := db.logging("DeleteUser", id, cid)
+func (db *Conn) DeleteUser(ctx context.Context, id shared.UUID) error {
+	done, log := db.logging("DeleteUser", id, ctx.Value(shared.CTXKey("cid")).(shared.CID))
 
 	result, err := db.ExecContext(ctx, db.sqls["user"]["delete"], time.Now().UTC(), id)
 	if err == nil {
@@ -121,11 +123,11 @@ func (db *Conn) DeleteUser(ctx context.Context, id shared.UUID, cid shared.CID) 
 	return done(err, log)
 }
 
-func (db *Conn) CreateContact(ctx context.Context, u *shared.User, c shared.Contact, cid shared.CID) (*shared.Contact, error) {
+func (db *Conn) CreateContact(ctx context.Context, u *shared.User, c shared.Contact) (*shared.Contact, error) {
 	var err error
-	done, log := db.logging("CreateContact", u, cid)
+	done, log := db.logging("CreateContact", u, ctx.Value(shared.CTXKey("cid")).(shared.CID))
 
-	u.Contact, err = db.addContact(ctx, u.UUID, c, cid)
+	u.Contact, err = db.addContact(ctx, u.UUID, c)
 
 	return u.Contact, done(err, log)
 }

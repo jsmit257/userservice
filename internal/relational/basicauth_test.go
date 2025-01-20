@@ -1,7 +1,6 @@
 package data
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"testing"
@@ -99,9 +98,10 @@ func Test_GetAuthByAttrs(t *testing.T) {
 				tc.db(sqlmock.New()),
 				nil,
 				mockSqls(),
+				&senderMock{},
 				l,
 				testmetrics,
-			}).GetAuthByAttrs(context.Background(), tc.id, tc.name, shared.CID("Test_GetAuthByAttrs-"+name))
+			}).GetAuthByAttrs(mockContext(shared.CID("Test_GetAuthByAttrs-"+name)), tc.id, tc.name)
 
 			require.Equal(t, tc.err, err)
 		})
@@ -193,9 +193,10 @@ func Test_ChangePassword(t *testing.T) {
 				tc.db(sqlmock.New()),
 				nil,
 				mockSqls(),
+				&senderMock{},
 				l,
 				testmetrics,
-			}).ChangePassword(context.Background(), &tc.old, &tc.new, shared.CID("Test_ResetPassword-"+name))
+			}).ChangePassword(mockContext(shared.CID("Test_ResetPassword-"+name)), &tc.old, &tc.new)
 
 			require.Equal(t, tc.err, err)
 		})
@@ -314,9 +315,10 @@ func Test_Login(t *testing.T) {
 				tc.db(sqlmock.New()),
 				nil,
 				mockSqls(),
+				&senderMock{},
 				l,
 				testmetrics,
-			}).Login(context.Background(), &tc.login, shared.CID("Test_Login-"+name))
+			}).Login(mockContext(shared.CID("Test_Login-"+name)), &tc.login)
 
 			require.Equal(t, tc.err, err)
 		})
@@ -345,16 +347,17 @@ func Test_ResetPassword(t *testing.T) {
 			},
 			login: shared.BasicAuth{UUID: "1", Pass: "snakeoil"},
 		},
-		"no_rows_found": {
+		"no_basicauth_found": {
 			db: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
 				mock.ExpectQuery("").
 					WillReturnRows(sqlmock.
 						NewRows(basicFields))
+
 				return db
 			},
 			err: sql.ErrNoRows,
 		},
-		"select_fails": {
+		"select_basicauth_fails": {
 			db: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
 				mock.ExpectQuery("").WillReturnError(fmt.Errorf("some error"))
 				return db
@@ -411,9 +414,10 @@ func Test_ResetPassword(t *testing.T) {
 				tc.db(sqlmock.New()),
 				nil,
 				mockSqls(),
+				&senderMock{},
 				l,
 				testmetrics,
-			}).ResetPassword(context.Background(), &tc.login.UUID, shared.CID("Test_ResetPassword-"+name))
+			}).ResetPassword(mockContext(shared.CID("Test_ResetPassword-"+name)), &tc.login.UUID)
 
 			require.Equal(t, tc.err, err)
 		})
@@ -461,9 +465,10 @@ func Test_updateBasicAuth(t *testing.T) {
 				tc.db(sqlmock.New()),
 				nil,
 				mockSqls(),
+				&senderMock{},
 				l,
 				testmetrics,
-			}).updateBasicAuth(context.Background(), &tc.login, shared.CID("Test_updateBasicAuth-"+name))
+			}).updateBasicAuth(mockContext(shared.CID("Test_updateBasicAuth-"+name)), &tc.login)
 
 			require.Equal(t, tc.err, err)
 		})

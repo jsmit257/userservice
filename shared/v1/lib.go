@@ -34,3 +34,24 @@ func CheckValid(host string, port uint16, cookie *http.Cookie) (*http.Cookie, in
 
 	return result, http.StatusFound
 }
+
+func CheckOTP(host string, port uint16, pad string) (*http.Cookie, int) {
+	url := fmt.Sprintf("http://%s:%d/otp/%s", host, port, pad)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, http.StatusInternalServerError
+	}
+
+	var result *http.Cookie
+	if resp, err := http.DefaultClient.Do(req); err != nil {
+		return nil, http.StatusInternalServerError
+	} else if resp.StatusCode != http.StatusFound {
+		return nil, http.StatusForbidden
+	} else if header := resp.Header.Get("Set-Cookie"); len(header) == 0 {
+		return nil, http.StatusInternalServerError
+	} else if result, err = http.ParseSetCookie(header); err != nil {
+		return nil, http.StatusInternalServerError
+	}
+
+	return result, http.StatusFound
+}
