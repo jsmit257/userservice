@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
@@ -89,7 +90,7 @@ func TestGetAllAddresses(t *testing.T) {
 				mockSqls(),
 				&senderMock{},
 				l,
-				testmetrics,
+				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).GetAllAddresses(mockContext(cid))
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.addr, addr)
@@ -137,7 +138,7 @@ func TestGetAddress(t *testing.T) {
 				mockSqls(),
 				&senderMock{},
 				l,
-				testmetrics,
+				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).GetAddress(mockContext(cid), "1")
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.result, addr)
@@ -195,7 +196,7 @@ func TestAddAddress(t *testing.T) {
 				mockSqls(),
 				&senderMock{},
 				l,
-				testmetrics,
+				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).AddAddress(mockContext(cid), tc.addr)
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.result, uuid)
@@ -249,7 +250,7 @@ func TestUpdateAddress(t *testing.T) {
 				mockSqls(),
 				&senderMock{},
 				l,
-				testmetrics,
+				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).UpdateAddress(mockContext(cid), tc.addr))
 		})
 	}

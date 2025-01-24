@@ -27,7 +27,8 @@ type Config struct {
 	ServerHost string `envconfig:"HTTP_HOST" default:"0.0.0.0" json:"server_host"`
 	ServerPort uint16 `envconfig:"HTTP_PORT" default:"3000" json:"server_port"`
 
-	LogLevel string `envconfig:"LOG_LEVEL" default:"INFO" json:"min_log_level"`
+	LogLevel      string `envconfig:"LOG_LEVEL" default:"INFO" json:"min_log_level"`
+	EmailTestMode bool   `envconfig:"EMAIL_TEST_MODE" default:"0" json:"test_mode"`
 }
 
 func NewConfig() *Config {

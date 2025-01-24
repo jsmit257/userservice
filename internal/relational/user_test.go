@@ -8,6 +8,7 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/go-sql-driver/mysql"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
@@ -82,7 +83,7 @@ func TestGetAllUsers(t *testing.T) {
 				mockSqls(),
 				&senderMock{},
 				l,
-				testmetrics,
+				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).GetAllUsers(mockContext(cid))
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.result, result)
@@ -166,7 +167,7 @@ func TestGetUser(t *testing.T) {
 				mockSqls(),
 				&senderMock{},
 				l,
-				testmetrics,
+				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).GetUser(mockContext(shared.CID("TestGetUser-"+name)), "1")
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.result, user)
@@ -264,7 +265,7 @@ func TestAddUser(t *testing.T) {
 				mockSqls(),
 				&senderMock{},
 				l,
-				testmetrics,
+				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).AddUser(mockContext(shared.CID("TestAddUser-"+name)), tc.user)
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.result, result)
@@ -314,7 +315,7 @@ func TestUpdateUser(t *testing.T) {
 				mockSqls(),
 				&senderMock{},
 				l,
-				testmetrics,
+				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).UpdateUser(mockContext(shared.CID("TestUpdateUser-"+name)), tc.user))
 		})
 	}
@@ -359,7 +360,7 @@ func TestDeleteUser(t *testing.T) {
 				mockSqls(),
 				&senderMock{},
 				l,
-				testmetrics,
+				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).DeleteUser(mockContext(shared.CID("TestDeleteUser-"+name)), "1"))
 		})
 	}
@@ -407,7 +408,7 @@ func TestCreateContact(t *testing.T) {
 				mockSqls(),
 				&senderMock{},
 				l,
-				testmetrics,
+				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).CreateContact(mockContext(shared.CID("TestCreateContact-"+name)), &tc.user, tc.contact)
 
 			if result != nil {

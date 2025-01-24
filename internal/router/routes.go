@@ -59,11 +59,12 @@ func NewInstance(us *UserService, cfg *config.Config, log *logrus.Entry) *http.S
 
 	r.Post("/logout", us.PostLogout)
 	r.Get("/valid", us.GetValid)
-	r.Get("/otp/{pad}", us.GetValidOTP)
+	r.Get("/otp/{pad}", us.GetLoginOTP)
+	r.Get("/validateotp", us.PostValidateOTP)
 
 	r.Get("/hc", hc)
 
-	r.Get("/metrics", metrics.NewHandler(prometheus.NewRegistry()))
+	r.Get("/metrics", metrics.NewHandler())
 
 	return &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", cfg.ServerHost, cfg.ServerPort),
@@ -98,18 +99,17 @@ func getRoutePattern(r *http.Request) string {
 	return "!!" + routePath
 }
 
-func wrapContext(e *logrus.Entry) func(next http.Handler) http.Handler {
+func wrapContext(log *logrus.Entry) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
 			cid := shared.CID(uuid.NewString())
 
-			e = e.WithFields(logrus.Fields{
+			log = log.WithFields(logrus.Fields{
 				"method": r.Method,
-				"remote": r.RemoteAddr,
-				"start":  start.String(),
+				"remote": r.RemoteAddr, // is this necessary?
 				"url":    r.RequestURI, // this, or getRoutePattern and fill in the blanks with more fields?
-				"us-cid": cid,
+				"cid":    cid,
 			})
 
 			m := metrics.ServiceMetrics.MustCurryWith(prometheus.Labels{
@@ -118,16 +118,16 @@ func wrapContext(e *logrus.Entry) func(next http.Handler) http.Handler {
 				"url":    getRoutePattern(r),
 			})
 
-			w.Header().Set("us-cid", string(cid))
+			w.Header().Set("Cid", string(cid))
 			r = r.WithContext(context.WithValue(r.Context(), shared.CTXKey("cid"), cid))
-			r = r.WithContext(context.WithValue(r.Context(), shared.CTXKey("log"), e))
+			r = r.WithContext(context.WithValue(r.Context(), shared.CTXKey("log"), log))
 			r = r.WithContext(context.WithValue(r.Context(), shared.CTXKey("metrics"), m))
 
-			e.Info("started request")
+			log.Info("started request")
 
 			next.ServeHTTP(w, r)
 
-			e.WithField("duration", time.Since(start).String()).Info("finished request")
+			log.WithField("duration", time.Since(start).String()).Info("finished request")
 		})
 	}
 }
@@ -140,7 +140,7 @@ func (sc sc) send(ctx context.Context, w http.ResponseWriter, err error, message
 		// 	messages = append(messages, err.Error())
 		// }
 	}
-	l.Info("sending status code and messages")
+	l.WithField("status-code", sc).Info("sending status code and messages")
 
 	ctx.
 		Value(shared.CTXKey("metrics")).(*prometheus.CounterVec).
@@ -155,7 +155,7 @@ func (sc sc) send(ctx context.Context, w http.ResponseWriter, err error, message
 
 func (sc sc) success(ctx context.Context, w http.ResponseWriter, messages ...string) {
 	w.Header().Add("Content-Type", "application/json")
-	sc.send(ctx, w, fmt.Errorf("none"), messages...)
+	sc.send(ctx, w, nil, messages...)
 }
 
 func mustJSON(a any) string {

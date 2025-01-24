@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/jsmit257/userservice/shared/v1"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -150,7 +151,7 @@ func TestGetContact(t *testing.T) {
 				mockSqls(),
 				&senderMock{},
 				l,
-				testmetrics,
+				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).getContact(mockContext(shared.CID("TestGetContact-"+name)), "1")
 			require.Equal(t, tc.err, err)
 			require.Equal(t, tc.result, contact)
@@ -219,7 +220,7 @@ func TestAddContact(t *testing.T) {
 				mockSqls(),
 				&senderMock{},
 				l,
-				testmetrics,
+				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).addContact(mockContext(shared.CID("TestAddContact-"+name)), tc.userid, tc.contact)
 			require.Equal(t, tc.err, err)
 			// require.Equal(t, tc.result, result) // there's no way to match mtime/ctime
@@ -274,7 +275,7 @@ func TestUpdateContact(t *testing.T) {
 				mockSqls(),
 				&senderMock{},
 				l,
-				testmetrics,
+				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).UpdateContact(mockContext(shared.CID("TestUpdateContact-"+name)), tc.userid, tc.contact))
 		})
 	}

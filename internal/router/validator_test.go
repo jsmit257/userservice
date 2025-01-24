@@ -22,8 +22,12 @@ type mockValidator struct {
 	token   string
 	tokensc int
 
-	validotp   *http.Cookie
-	validotpsc int
+	loginloc   string
+	loginotp   *http.Cookie
+	loginotpsc int
+
+	validateotp   shared.UUID
+	validateoptsc int
 }
 
 var testCookie = http.Cookie{
@@ -140,18 +144,30 @@ func Test_GetValid(t *testing.T) {
 	}
 }
 
-func Test_GetValidOTP(t *testing.T) {
+func Test_GetLoginOTP(t *testing.T) {
 	t.Parallel()
 
 	tcs := map[string]struct {
 		pad string
 		mv  *mockValidator
 		sc  int
+		loc string
 	}{
 		"happy_path": {
 			pad: "foobar",
-			mv:  &mockValidator{validotpsc: http.StatusFound},
+			mv: &mockValidator{
+				loginloc:   "redirect",
+				loginotpsc: http.StatusFound,
+			},
 			sc:  http.StatusFound,
+			loc: "redirect",
+		},
+		"missing redirect": {
+			pad: "foobar",
+			mv: &mockValidator{
+				loginotpsc: http.StatusFound,
+			},
+			sc: http.StatusFound,
 		},
 		"missing_token": {
 			sc: http.StatusBadRequest,
@@ -186,7 +202,70 @@ func Test_GetValidOTP(t *testing.T) {
 				})
 			}
 
-			us.GetValidOTP(w, r)
+			us.GetLoginOTP(w, r)
+
+			require.Equal(t, tc.sc, w.Code)
+			require.Equal(t, tc.loc, w.Header().Get("Location"))
+		})
+	}
+}
+
+func Test_PostValidateOTP(t *testing.T) {
+	t.Parallel()
+
+	tcs := map[string]struct {
+		token string
+		pad   string
+		v     *mockValidator
+		sc    int
+	}{
+		"pass_through": {
+			token: "foobar",
+			pad:   "pad",
+			v: &mockValidator{
+				validateotp:   "uid",
+				validateoptsc: http.StatusOK,
+			},
+			sc: http.StatusOK,
+		},
+		"missing_pad": {
+			token: "foobar",
+			sc:    http.StatusForbidden,
+		},
+		"missing_token": {
+			sc: http.StatusForbidden,
+		},
+	}
+
+	for name, tc := range tcs {
+		name, tc := name, tc
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			us := &UserService{Validator: tc.v}
+			w := httptest.NewRecorder()
+			r, _ := http.NewRequestWithContext(
+				context.WithValue(
+					mockContext(),
+					chi.RouteCtxKey,
+					chi.NewRouteContext()),
+				http.MethodPost,
+				"tc.url",
+				nil,
+			)
+			if tc.token != "" {
+				r.AddCookie(&http.Cookie{
+					Name:    "us-authn",
+					Value:   tc.token,
+					Expires: time.Now().UTC().Add(time.Hour),
+				})
+			}
+			if tc.pad != "" {
+				r.Header.Set("Authn-Pad", tc.pad)
+			}
+
+			us.PostValidateOTP(w, r)
 
 			require.Equal(t, tc.sc, w.Code)
 		})
@@ -202,9 +281,12 @@ func (mv *mockValidator) Logout(context.Context, string) (*http.Cookie, int) {
 func (mv *mockValidator) Valid(context.Context, string) (*http.Cookie, int) {
 	return &testCookie, mv.validsc
 }
-func (mv *mockValidator) OTP(context.Context, shared.UUID, string) (string, int) {
+func (mv *mockValidator) OTP(context.Context, shared.UUID, string, string) (string, int) {
 	return mv.token, mv.tokensc
 }
-func (mv *mockValidator) ValidOTP(context.Context, string, string) (*http.Cookie, int) {
-	return mv.validotp, mv.validotpsc
+func (mv *mockValidator) LoginOTP(context.Context, string, string) (string, *http.Cookie, int) {
+	return mv.loginloc, mv.loginotp, mv.loginotpsc
+}
+func (mv *mockValidator) ValidateOTP(context.Context, string, string) (shared.UUID, int) {
+	return mv.validateotp, mv.validateoptsc
 }

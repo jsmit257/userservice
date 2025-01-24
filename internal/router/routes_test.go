@@ -113,7 +113,7 @@ func mockContext() context.Context {
 			}),
 		),
 		shared.CTXKey("cid"),
-		"test",
+		shared.CID("test"),
 	)
 }
 

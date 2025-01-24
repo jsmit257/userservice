@@ -433,6 +433,14 @@ func userToBody(u *shared.User) string {
 	result, _ := json.Marshal(u)
 	return string(result)
 }
+func userToDelete(u *shared.User, redirect string) string {
+	result, _ := json.Marshal(u)
+	temp := map[string]interface{}{}
+	_ = json.Unmarshal(result, &temp)
+	temp["redirect"] = redirect
+	result, _ = json.Marshal(temp)
+	return string(result)
+}
 
 func (mu *mockUserer) GetAllUsers(context.Context) ([]shared.User, error) {
 	return mu.users, mu.getUsersErr

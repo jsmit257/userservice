@@ -8,9 +8,8 @@ import (
 )
 
 var (
-	DataMetrics     *prometheus.CounterVec
-	ServiceMetrics3 *prometheus.CounterVec
-	ServiceMetrics  *prometheus.CounterVec
+	DataMetrics    *prometheus.CounterVec
+	ServiceMetrics *prometheus.CounterVec
 )
 
 func init() {
@@ -19,7 +18,7 @@ func init() {
 		Help:      "The packages, methods and possible errors when accessing data",
 		Namespace: "cffc",
 		Subsystem: "userservice",
-	}, []string{"db", "function", "err"})
+	}, []string{"db", "pkg", "function", "status"})
 
 	ServiceMetrics = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name:        "router",
@@ -30,7 +29,9 @@ func init() {
 	}, []string{"url", "proto", "method", "sc"})
 }
 
-func NewHandler(reg *prometheus.Registry) http.HandlerFunc {
+func NewHandler() http.HandlerFunc {
+	reg := prometheus.NewRegistry()
+
 	reg.MustRegister(DataMetrics)
 	reg.MustRegister(ServiceMetrics)
 

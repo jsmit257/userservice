@@ -39,12 +39,12 @@ type (
 var (
 	rightaboutnow = time.Now().UTC()
 	testmetrics   = metrics.DataMetrics.MustCurryWith(prometheus.Labels{
-		"db": "quien sabes",
+		"pkg": "data test",
 	})
 )
 
 func Test_NewUserService(t *testing.T) {
-	result := NewUserService(nil, nil, nil, nil, nil)
+	result := NewUserService(nil, nil, nil, logrus.WithTime(time.Now().UTC()), testmetrics)
 	require.NotNil(t, result)
 }
 

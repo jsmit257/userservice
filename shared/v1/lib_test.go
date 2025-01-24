@@ -90,8 +90,8 @@ func Test_CheckValid(t *testing.T) {
 			httpmock.Activate()
 			defer httpmock.Deactivate()
 
-			response, err := CheckValid(tc.host, tc.port, tc.cookie)
-			require.Equal(t, tc.status, err)
+			response, sc := CheckValid(tc.host, tc.port, tc.cookie)
+			require.Equal(t, tc.status, sc)
 			if tc.response != nil {
 				require.Equal(t, tc.response.Value, response.Value)
 				require.Equal(t, tc.response.Expires, response.Expires)
@@ -108,19 +108,22 @@ func Test_CheckOTP(t *testing.T) {
 	t.Parallel()
 
 	tcs := map[string]struct {
-		host     string
-		port     uint16
-		pad      string
-		sc       int
-		response *http.Cookie
-		status   int
+		host   string
+		port   uint16
+		uid    UUID
+		pad    string
+		err    error
+		sc     int
+		cookie http.Cookie
+		status int
 	}{
 		"happy_path": {
 			host: "Test_CheckOTP",
 			port: 1,
 			pad:  "1",
-			sc:   http.StatusFound,
-			response: &http.Cookie{
+			uid:  "uid",
+			sc:   http.StatusOK,
+			cookie: http.Cookie{
 				Name:       "us-authn",
 				Value:      "Test_CheckOTP",
 				Expires:    now.Truncate(time.Second),
@@ -128,28 +131,27 @@ func Test_CheckOTP(t *testing.T) {
 				MaxAge:     900,
 				HttpOnly:   true,
 			},
-			status: http.StatusFound,
+			status: http.StatusOK,
+		},
+		"nil_cookie": {
+			status: http.StatusBadRequest,
 		},
 		"forbidden": {
-			host:   "Test_CheckOTP",
-			port:   1,
-			pad:    "",
 			sc:     http.StatusForbidden,
 			status: http.StatusForbidden,
 		},
-		"tx_empty_cookie": {
-			host: "Test_CheckOTP",
-			port: 1,
-			pad:  "1",
-			sc:   http.StatusNoContent,
-			response: &http.Cookie{
-				Name:       "us-authn",
-				Value:      "Test_CheckOTP",
-				Expires:    now.Truncate(time.Second),
-				RawExpires: now.In(time.FixedZone("GMT", 0)).Format(time.RFC1123),
-				MaxAge:     900,
-				HttpOnly:   true,
-			},
+		"request_fails": {
+			host:   "Test_CheckOTP",
+			port:   1,
+			pad:    "1",
+			err:    fmt.Errorf("some error"),
+			status: http.StatusInternalServerError,
+		},
+		"empty_body": {
+			host:   "Test_CheckOTP",
+			port:   1,
+			pad:    "1",
+			sc:     http.StatusOK,
 			status: http.StatusForbidden,
 		},
 	}
@@ -160,26 +162,23 @@ func Test_CheckOTP(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// tc.cookie.Raw = tc.cookie.String()
 			// srv := httpmock.NewMockTransport()
-			httpmock.RegisterResponder(http.MethodGet,
-				fmt.Sprintf("http://%s:%d/otp/%s", tc.host, tc.port, tc.pad),
+			httpmock.RegisterResponder(http.MethodPost,
+				fmt.Sprintf("http://%s:%d/validateotp/%s", tc.host, tc.port, tc.cookie.Value),
 				func(r *http.Request) (*http.Response, error) {
-					resp := httpmock.NewBytesResponse(tc.sc, nil)
-					resp.Header.Set("Set-Cookie", tc.response.String())
-					return resp, nil
+					resp := httpmock.NewStringResponse(tc.sc, string(tc.uid))
+					return resp, tc.err
 				})
 			httpmock.Activate()
 			defer httpmock.Deactivate()
 
-			response, err := CheckOTP(tc.host, tc.port, tc.pad)
-			require.Equal(t, tc.status, err)
-			if response != nil {
-				require.Equal(t, tc.response.Value, response.Value)
-				require.Equal(t, tc.response.Expires, response.Expires)
-				require.Equal(t, tc.response.MaxAge, response.MaxAge)
-				require.Equal(t, tc.response.HttpOnly, response.HttpOnly)
-			} else {
-				require.Nil(t, response)
+			c := &tc.cookie
+			if name == "nil_cookie" {
+				c = nil
 			}
+
+			response, sc := CheckOTP(tc.host, tc.port, c, tc.pad)
+			require.Equal(t, tc.status, sc)
+			require.Equal(t, tc.uid, response)
 		})
 	}
 }

@@ -9,16 +9,27 @@ import (
 	"github.com/jsmit257/userservice/internal/config"
 )
 
-type Sender interface {
-	Send(m *gomail.Message) error
-	Close()
-}
+type (
+	Sender interface {
+		Send(m *gomail.Message) error
+		Close()
+	}
 
-type sender chan *gomail.Message
+	sender chan *gomail.Message
+
+	testSender struct {
+		l *logrus.Entry
+	}
+)
 
 func NewSender(cfg *config.Config, log *logrus.Entry) (Sender, error) {
 	log = log.WithField("pkg", "maild")
 	result := make(sender, 10)
+
+	if cfg.EmailTestMode {
+		log.Info("mail relay daemon started with dummy mailer")
+		return &testSender{log}, nil
+	}
 
 	d := gomail.NewDialer(
 		cfg.MaildHost,
@@ -74,4 +85,13 @@ func (s sender) Send(m *gomail.Message) error {
 
 func (s sender) Close() {
 	close(s)
+}
+
+func (s *testSender) Send(msg *gomail.Message) error {
+	s.l.WithField("msg", msg).Info("sending message")
+	return nil
+}
+
+func (s *testSender) Close() {
+	s.l.Info("closing maild")
 }

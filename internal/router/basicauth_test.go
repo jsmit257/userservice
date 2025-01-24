@@ -307,7 +307,8 @@ func Test_DeleteLogin(t *testing.T) {
 		login shared.User
 		input,
 		user *shared.User
-		sc int
+		loc string
+		sc  int
 	}{
 		"happy_path": {
 			a: mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
@@ -324,7 +325,24 @@ func Test_DeleteLogin(t *testing.T) {
 				Email: &addr,
 				Cell:  &cell,
 			},
-			sc: http.StatusNoContent,
+			sc:  http.StatusNoContent,
+			loc: "redirect",
+		},
+		"sms_only": {
+			a: mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
+			v: mockValidator{token: "token"},
+			s: mockSender{},
+			u: mockUserer{
+				user: &shared.User{
+					UUID: "uuid",
+					Cell: &cell,
+				}},
+			login: shared.User{
+				UUID: "uuid",
+				Cell: &cell,
+			},
+			sc:  http.StatusNoContent,
+			loc: "redirect",
 		},
 		"read_fails": {
 			sc: http.StatusBadRequest,
@@ -332,15 +350,21 @@ func Test_DeleteLogin(t *testing.T) {
 		"unmarshal_fails": {
 			sc: http.StatusBadRequest,
 		},
+		"missing_redirect": {
+			u:  mockUserer{userErr: fmt.Errorf("some error")},
+			sc: http.StatusBadRequest,
+		},
 		"get_user_fails": {
 			u:     mockUserer{userErr: fmt.Errorf("some error")},
 			login: shared.User{UUID: "uuid"},
 			sc:    http.StatusInternalServerError,
+			loc:   "redirect",
 		},
 		"undeliverable": {
 			u:     mockUserer{user: &shared.User{UUID: "uuid"}},
 			login: shared.User{UUID: "uuid"},
 			sc:    http.StatusBadRequest,
+			loc:   "redirect",
 		},
 		"email_mismatch": {
 			u: mockUserer{user: &shared.User{
@@ -352,7 +376,8 @@ func Test_DeleteLogin(t *testing.T) {
 				UUID:  "uuid",
 				Email: &badaddr,
 			},
-			sc: http.StatusBadRequest,
+			sc:  http.StatusBadRequest,
+			loc: "redirect",
 		},
 		"cell_mismatch": {
 			u: mockUserer{user: &shared.User{
@@ -364,7 +389,8 @@ func Test_DeleteLogin(t *testing.T) {
 				UUID: "uuid",
 				Cell: &badcell,
 			},
-			sc: http.StatusBadRequest,
+			sc:  http.StatusBadRequest,
+			loc: "redirect",
 		},
 		"gen_token_fails": {
 			u: mockUserer{user: &shared.User{
@@ -377,7 +403,8 @@ func Test_DeleteLogin(t *testing.T) {
 				UUID: "uuid",
 				Cell: &cell,
 			},
-			sc: http.StatusConflict,
+			sc:  http.StatusConflict,
+			loc: "redirect",
 		},
 		"reset_fails": {
 			u: mockUserer{user: &shared.User{
@@ -391,7 +418,8 @@ func Test_DeleteLogin(t *testing.T) {
 				UUID: "uuid",
 				Cell: &cell,
 			},
-			sc: http.StatusBadRequest,
+			sc:  http.StatusBadRequest,
+			loc: "redirect",
 		},
 		"send_email_fails": {
 			u: mockUserer{user: &shared.User{
@@ -405,7 +433,8 @@ func Test_DeleteLogin(t *testing.T) {
 				UUID: "uuid",
 				Cell: &cell,
 			},
-			sc: http.StatusInternalServerError,
+			sc:  http.StatusInternalServerError,
+			loc: "redirect",
 		},
 		"send_sms_fails": {
 			u: mockUserer{user: &shared.User{
@@ -417,7 +446,8 @@ func Test_DeleteLogin(t *testing.T) {
 				UUID:  "uuid",
 				Email: &addr,
 			},
-			sc: http.StatusInternalServerError,
+			sc:  http.StatusInternalServerError,
+			loc: "redirect",
 		},
 	}
 	for name, tc := range tcs {
@@ -433,7 +463,7 @@ func Test_DeleteLogin(t *testing.T) {
 				Validator: &tc.v,
 			}
 
-			body := userToBody(&tc.login)
+			body := userToDelete(&tc.login, tc.loc)
 			if name == "unmarshal_fails" {
 				body = body[1:]
 			}

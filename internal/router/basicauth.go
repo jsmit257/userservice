@@ -12,7 +12,7 @@ import (
 	"github.com/jsmit257/userservice/shared/v1"
 )
 
-var emailTmpl string = "email %s"
+var emailTmpl string = `<a "href=https://%s/otp/%s">Change Password</a>`
 
 func (us UserService) GetAuth(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -69,7 +69,7 @@ func (us UserService) PatchLogin(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func genResetEmail(u *shared.User, _ string) *gomail.Message {
+func genResetEmail(u *shared.User, host, token string) *gomail.Message {
 	if u.Email == nil {
 		return nil
 	}
@@ -79,7 +79,8 @@ func genResetEmail(u *shared.User, _ string) *gomail.Message {
 	m.SetHeader("To", *u.Email)
 	m.SetBody("text/html", fmt.Sprintf(
 		emailTmpl,
-		"generatedLink",
+		host,
+		token,
 	))
 
 	return m
@@ -97,10 +98,15 @@ func (us UserService) DeleteLogin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var input, user *shared.User
+	var redirect struct {
+		Location string `json:"redirect"`
+	}
 	if body, err := io.ReadAll(r.Body); err != nil {
 		sc(http.StatusBadRequest).send(ctx, w, err, err.Error())
 	} else if err = json.Unmarshal(body, &input); err != nil {
 		sc(http.StatusBadRequest).send(ctx, w, err, err.Error(), string(body))
+	} else if _ = json.Unmarshal(body, &redirect); redirect.Location == "" {
+		sc(http.StatusBadRequest).send(ctx, w, err, "redirect required", string(body))
 	} else if user, err = us.Userer.GetUser(ctx, input.UUID); err != nil {
 		sc(http.StatusInternalServerError).send(ctx, w, err, err.Error())
 	} else if user.Email == nil && user.Cell == nil {
@@ -109,11 +115,11 @@ func (us UserService) DeleteLogin(w http.ResponseWriter, r *http.Request) {
 		sc(http.StatusBadRequest).send(ctx, w, fmt.Errorf("email doesn't match records"))
 	} else if input.Cell != nil && user.Cell != nil && *input.Cell != *user.Cell {
 		sc(http.StatusBadRequest).send(ctx, w, fmt.Errorf("cell number doesn't match records"))
-	} else if token, code := us.OTP(ctx, user.UUID, r.RemoteAddr); token == "" {
+	} else if token, code := us.OTP(ctx, user.UUID, r.RemoteAddr, redirect.Location); token == "" {
 		sc(code).send(ctx, w, fmt.Errorf("couldn't generate token"))
 	} else if err := us.Auther.ResetPassword(ctx, &input.UUID); err != nil {
 		sc(http.StatusBadRequest).send(ctx, w, err, err.Error())
-	} else if err = us.Send(genResetEmail(user, token)); err != nil {
+	} else if err = us.Sender.Send(genResetEmail(user, r.Host, token)); err != nil {
 		sc(http.StatusInternalServerError).send(ctx, w, err, err.Error())
 	} else if txt, err := genResetTxt(user, token); err != nil {
 		sc(http.StatusInternalServerError).send(ctx, w, err, err.Error())

@@ -39,7 +39,7 @@ func (us UserService) GetValid(w http.ResponseWriter, r *http.Request) {
 	sc(code).success(ctx, w)
 }
 
-func (us UserService) GetValidOTP(w http.ResponseWriter, r *http.Request) {
+func (us UserService) GetLoginOTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	pad := chi.URLParam(r, "pad")
@@ -48,9 +48,32 @@ func (us UserService) GetValidOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cookie, code := us.Validator.ValidOTP(ctx, pad, r.RemoteAddr)
+	loc, cookie, code := us.Validator.LoginOTP(ctx, pad, r.RemoteAddr)
 
 	http.SetCookie(w, cookie)
+	w.Header().Set("Location", loc)
+	w.Header().Set("Authn-Pad", pad)
 
 	sc(code).success(ctx, w)
+}
+
+func (us UserService) PostValidateOTP(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	token, err := r.Cookie("us-authn")
+	if err != nil {
+		sc(http.StatusForbidden).send(ctx, w, shared.MissingAuthToken)
+		return
+	}
+
+	pad := r.Header.Get("Authn-Pad")
+	if pad == "" {
+		sc(http.StatusForbidden).send(ctx, w, shared.MissingAuthToken)
+		return
+	}
+
+	uid, code := us.Validator.ValidateOTP(ctx, token.Value, pad)
+
+	sc(code).success(ctx, w)
+	_, _ = w.Write([]byte(uid))
 }

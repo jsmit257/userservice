@@ -102,6 +102,7 @@ services:
       US_HTTP_PORT: *http-port
       US_REDIS_HOST: *redis-host
       US_REDIS_PORT: *redis-port
+      US_EMAIL_TEST_MODE: true
 
   us-web-test:
     # test harness mostly auth functions that relate to redis endpoints

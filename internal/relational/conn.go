@@ -40,7 +40,12 @@ type (
 )
 
 func NewUserService(db *sql.DB, sqls config.Sqls, mx maild.Sender, l *logrus.Entry, m *prometheus.CounterVec) *router.UserService {
-	conn := &Conn{db, uuidGen, sqls, mx, l, m}
+	conn := &Conn{db, uuidGen, sqls, mx, l.WithFields(logrus.Fields{
+		"pkg": "data",
+		"db":  "mysql",
+	}), m.MustCurryWith(prometheus.Labels{
+		"db": "mysql",
+	})}
 	return &router.UserService{
 		Addresser: conn,
 		Auther:    conn,
@@ -69,7 +74,7 @@ func (db *Conn) logging(fn string, key any, cid shared.CID) (deferred, *logrus.E
 		if err != nil {
 			l = l.WithError(err)
 		}
-		l.WithField("duration", time.Since(start).String()).Infof("finished work")
+		l.WithField("duration", time.Since(start).String()).Info("finished work")
 		m.done(err)
 		return err
 	}, l

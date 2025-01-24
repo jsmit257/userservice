@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
@@ -100,7 +101,7 @@ func Test_GetAuthByAttrs(t *testing.T) {
 				mockSqls(),
 				&senderMock{},
 				l,
-				testmetrics,
+				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).GetAuthByAttrs(mockContext(shared.CID("Test_GetAuthByAttrs-"+name)), tc.id, tc.name)
 
 			require.Equal(t, tc.err, err)
@@ -195,7 +196,7 @@ func Test_ChangePassword(t *testing.T) {
 				mockSqls(),
 				&senderMock{},
 				l,
-				testmetrics,
+				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).ChangePassword(mockContext(shared.CID("Test_ResetPassword-"+name)), &tc.old, &tc.new)
 
 			require.Equal(t, tc.err, err)
@@ -317,7 +318,7 @@ func Test_Login(t *testing.T) {
 				mockSqls(),
 				&senderMock{},
 				l,
-				testmetrics,
+				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).Login(mockContext(shared.CID("Test_Login-"+name)), &tc.login)
 
 			require.Equal(t, tc.err, err)
@@ -416,7 +417,7 @@ func Test_ResetPassword(t *testing.T) {
 				mockSqls(),
 				&senderMock{},
 				l,
-				testmetrics,
+				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).ResetPassword(mockContext(shared.CID("Test_ResetPassword-"+name)), &tc.login.UUID)
 
 			require.Equal(t, tc.err, err)
@@ -467,7 +468,7 @@ func Test_updateBasicAuth(t *testing.T) {
 				mockSqls(),
 				&senderMock{},
 				l,
-				testmetrics,
+				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).updateBasicAuth(mockContext(shared.CID("Test_updateBasicAuth-"+name)), &tc.login)
 
 			require.Equal(t, tc.err, err)

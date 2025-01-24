@@ -39,7 +39,6 @@ func Test_NewSender(t *testing.T) {
 }
 
 func Test_Send(t *testing.T) {
-	// t.Skip()
 	t.Parallel()
 
 	var err error
@@ -94,4 +93,13 @@ func Test_Close(t *testing.T) {
 	s <- gomail.NewMessage()
 	require.Fail(t, "should've paniced")
 
+}
+
+func Test_testSender(t *testing.T) {
+	t.Parallel()
+	s, err := NewSender(&config.Config{EmailTestMode: true}, logrus.WithField("test", "Test_testSender"))
+	require.Nil(t, err)
+	err = s.Send(nil)
+	require.Nil(t, err)
+	s.Close()
 }

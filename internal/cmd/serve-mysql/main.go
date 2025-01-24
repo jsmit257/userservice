@@ -44,7 +44,7 @@ func main() {
 
 	defer cleanup(log, cfg, err)
 
-	db, dbmtrx, err := newMysql(cfg)
+	db, err := newMysql(cfg)
 	cfg.MySQLPwd = "*****" // kinda rude
 	if err != nil {
 		panic("failed to connect mysql client")
@@ -69,7 +69,9 @@ func main() {
 	}
 	log.Info("created redis authn store")
 
-	us := data.NewUserService(db, sqls, sender, log, dbmtrx)
+	us := data.NewUserService(db, sqls, sender, log, metrics.DataMetrics.MustCurryWith(prometheus.Labels{
+		"pkg": "data",
+	}))
 	us.Validator = valid.NewValidator(authn, cfg, log)
 
 	srv := router.NewInstance(us, cfg, log)
@@ -99,7 +101,7 @@ func cleanup(log *logrus.Entry, cfg *config.Config, err error) {
 	}
 }
 
-func newMysql(cfg *config.Config) (*sql.DB, *prometheus.CounterVec, error) {
+func newMysql(cfg *config.Config) (*sql.DB, error) {
 	url := fmt.Sprintf("%s:%s@tcp(%s:%d)/userservice?parseTime=true",
 		cfg.MySQLUser,
 		cfg.MySQLPwd,
@@ -107,14 +109,11 @@ func newMysql(cfg *config.Config) (*sql.DB, *prometheus.CounterVec, error) {
 		cfg.MySQLPort,
 	)
 	db, err := sql.Open("mysql", url)
-	if err != nil {
-		return nil, nil, err
-	} else if err = db.Ping(); err != nil {
-		return nil, nil, err
+	if err == nil {
+		err = db.Ping()
 	}
-	return db, metrics.DataMetrics.MustCurryWith(prometheus.Labels{
-		"db": "mysql",
-	}), nil
+
+	return db, err
 }
 
 func newRedis(cfg *config.Config) (*redis.Client, error) {

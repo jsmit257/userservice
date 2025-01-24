@@ -17,7 +17,7 @@ func NewSqls(vendor string) (Sqls, error) {
 	}
 
 	result := make(Sqls, 3)
-	if err := yaml.NewDecoder(f).Decode(result); err != nil {
+	if err := yaml.NewDecoder(f).Decode(&result); err != nil {
 		return nil, err
 	}
 

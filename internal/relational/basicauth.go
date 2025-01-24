@@ -106,12 +106,7 @@ func (db *Conn) ResetPassword(ctx context.Context, id *shared.UUID) error {
 	auth.LoginSuccess = &now
 	auth.FailureCount = 0
 
-	err = db.updateBasicAuth(ctx, auth)
-	if err != nil {
-		return done(err, log)
-	}
-
-	return done(err, log)
+	return done(db.updateBasicAuth(ctx, auth), log)
 }
 
 func (db *Conn) updateBasicAuth(ctx context.Context, login *shared.BasicAuth) error {
