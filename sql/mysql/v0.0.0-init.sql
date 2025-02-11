@@ -15,7 +15,7 @@ create table if not exists users(
   name          varchar(128)  not null unique,
   email         varchar(256)  null,
   cell          varchar(20)   null, -- a phone number for txts and calls
-  password      char(15)      not null,
+  password      varchar(128)  not null,
   salt          char(4)       not null,
   loginsuccess  datetime      null     default current_timestamp,
   loginfailure  datetime      null,

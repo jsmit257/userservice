@@ -51,12 +51,6 @@ func main() {
 	}
 	log.Info("configured mysql client")
 
-	sender, err := maild.NewSender(cfg, log)
-	if err != nil {
-		panic("failed to initialize mail relay daemon")
-	}
-	defer sender.Close()
-
 	sqls, err := config.NewSqls("mysql")
 	if err != nil {
 		panic("failed to connect mysql client")
@@ -69,10 +63,22 @@ func main() {
 	}
 	log.Info("created redis authn store")
 
-	us := data.NewUserService(db, sqls, sender, log, metrics.DataMetrics.MustCurryWith(prometheus.Labels{
+	conn := data.NewUserService(db, sqls, log, metrics.DataMetrics.MustCurryWith(prometheus.Labels{
 		"pkg": "data",
 	}))
-	us.Validator = valid.NewValidator(authn, cfg, log)
+
+	us := &router.UserService{
+		Addresser: conn,
+		Auther:    conn,
+		Contacter: conn,
+		Userer:    conn,
+		Validator: valid.NewValidator(authn, cfg, log),
+	}
+
+	if us.Sender, err = maild.NewSender(cfg, log); err != nil {
+		panic("failed to initialize mail relay daemon")
+	}
+	defer us.Sender.Close()
 
 	srv := router.NewInstance(us, cfg, log)
 

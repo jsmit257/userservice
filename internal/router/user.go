@@ -45,6 +45,8 @@ func (us *UserService) PostUser(w http.ResponseWriter, r *http.Request) {
 		sc(http.StatusBadRequest).send(ctx, w, err)
 	} else if err = json.Unmarshal(body, &user); err != nil {
 		sc(http.StatusBadRequest).send(ctx, w, err)
+	} else if !user.Email.Valid() && !user.Cell.Valid() {
+		sc(http.StatusBadRequest).send(ctx, w, shared.Undeliverable, "no valid email or SMS provided")
 	} else if id, err := us.Userer.AddUser(ctx, &user); errors.Is(err, shared.UserExistsError) {
 		sc(http.StatusBadRequest).send(ctx, w, err, err.Error())
 	} else if errors.Is(err, shared.UserNotAddedError) {
@@ -54,7 +56,6 @@ func (us *UserService) PostUser(w http.ResponseWriter, r *http.Request) {
 	} else if id == "" {
 		sc(http.StatusInternalServerError).send(ctx, w, fmt.Errorf("userid_nil"))
 	} else {
-		// w.Header().Add("OTC", "one time code") // FIXME: is this still a thing?
 		sc(http.StatusCreated).success(ctx, w)
 		_, _ = w.Write([]byte(id))
 	}
@@ -65,11 +66,16 @@ func (us *UserService) PatchUser(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
+	// short := true
 	var user shared.User
 	if body, err := io.ReadAll(r.Body); err != nil {
 		sc(http.StatusBadRequest).send(ctx, w, err)
 	} else if err = json.Unmarshal(body, &user); err != nil {
 		sc(http.StatusBadRequest).send(ctx, w, err, fmt.Sprintf("couldn't unmarshal: '%s'", body))
+	} else if user.UUID = shared.UUID(chi.URLParam(r, "user_id")); user.UUID == "" {
+		sc(http.StatusBadRequest).send(ctx, w, shared.MissingParams, "missing user id")
+	} else if !user.Email.Valid() && !user.Cell.Valid() {
+		sc(http.StatusBadRequest).send(ctx, w, shared.Undeliverable, "no valid email or SMS provided")
 	} else if err = us.Userer.UpdateUser(ctx, &user); err != nil {
 		sc(http.StatusInternalServerError).send(ctx, w, err, err.Error())
 	} else {

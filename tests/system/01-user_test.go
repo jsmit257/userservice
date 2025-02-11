@@ -87,6 +87,8 @@ func Test_UsersGet(t *testing.T) {
 				for _, u := range users {
 					temp := *u
 					temp.Contact = nil
+					temp.Email = nil
+					temp.Cell = nil
 					result = append(result, temp)
 				}
 				return result
@@ -197,6 +199,8 @@ func Test_UserPost(t *testing.T) {
 func Test_UserPatch(t *testing.T) {
 	t.Parallel()
 
+	addr := shared.Email("addr")
+
 	tcs := map[string]struct {
 		userid shared.UUID
 		send   shared.User
@@ -206,28 +210,41 @@ func Test_UserPatch(t *testing.T) {
 		"happy_path": {
 			userid: users[userpatch].UUID,
 			send: shared.User{
+				UUID:  users[userpatch].UUID,
+				Name:  "test-user-random",
+				Email: &addr,
+			},
+			sc: http.StatusNoContent,
+		},
+		"undeliverable": {
+			userid: users[userpatch].UUID,
+			send: shared.User{
 				UUID: users[userpatch].UUID,
 				Name: "test-user-random",
 			},
-			sc: http.StatusNoContent,
+			sc:   http.StatusBadRequest,
+			resp: "no valid email or SMS provided",
 		},
 		"unique_key": {
 			userid: users[userpatch].UUID,
 			send:   *users[readonly],
-			resp:   shared.UserNotUpdatedError.Error(),
+			resp:   fmt.Sprintf("Error 1062 (23000): Duplicate entry '%s' for key 'users.name'", users[readonly].Name),
 			sc:     http.StatusInternalServerError,
 		},
 		"not_found": {
 			userid: "not-found",
-			send:   shared.User{UUID: "somebody else"},
-			resp:   shared.UserNotUpdatedError.Error(),
-			sc:     http.StatusInternalServerError,
+			send: shared.User{
+				UUID:  "somebody else",
+				Email: &addr,
+			},
+			resp: shared.UserNotUpdatedError.Error(),
+			sc:   http.StatusInternalServerError,
 		},
 	}
 	for name, tc := range tcs {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
-			t.Parallel()
+			// t.Parallel()
 
 			req, err := http.NewRequest(
 				http.MethodPatch,

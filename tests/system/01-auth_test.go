@@ -19,14 +19,14 @@ func Test_AuthGet(t *testing.T) {
 
 	tcs := map[string]struct {
 		username string
-		resp     *shared.User
+		resp     shared.UUID
 		sc       int
 		headers  http.Header
 	}{
 		"happy_path": {
 			username: users[readonly].Name,
-			sc:       http.StatusFound,
-			resp:     users[readonly],
+			sc:       http.StatusOK,
+			resp:     users[readonly].UUID,
 		},
 		"get_fails": {
 			username: "users.readonly.UUID",
@@ -57,19 +57,19 @@ func Test_AuthGet(t *testing.T) {
 
 			require.Equal(t, tc.sc, resp.StatusCode)
 
-			var got *shared.User
-			if resp.StatusCode == http.StatusFound {
+			var got = &shared.BasicAuth{}
+			if resp.StatusCode == http.StatusOK {
 				err = json.Unmarshal(body, &got)
 				require.Nil(t, err)
 			}
-			require.Equal(t, tc.resp, got)
+			require.Equal(t, tc.resp, got.UUID)
 			// require.Equal(t, tc.headers, resp.Header)
 		})
 	}
 }
 
 func Test_LoginPost(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	tcs := map[string]struct {
 		login *shared.BasicAuth
@@ -90,7 +90,7 @@ func Test_LoginPost(t *testing.T) {
 				Pass: "wrong!",
 			},
 			sc:   http.StatusBadRequest,
-			resp: shared.PasswordsMatch.Error(),
+			resp: shared.BadUserOrPassError.Error(),
 		},
 		"get_fails": {
 			login: &shared.BasicAuth{UUID: "users.readonly.UUID"},
@@ -102,7 +102,7 @@ func Test_LoginPost(t *testing.T) {
 	for name, tc := range tcs {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
-			t.Parallel()
+			// t.Parallel()
 
 			req, err := http.NewRequest(
 				http.MethodPost,
@@ -119,7 +119,7 @@ func Test_LoginPost(t *testing.T) {
 			require.Nil(t, err)
 			defer resp.Body.Close()
 
-			require.Equal(t, tc.sc, resp.StatusCode, string(body))
+			require.Equal(t, tc.sc, resp.StatusCode, "cid: %s, error: %s", resp.Header.Get("Cid"), string(body))
 
 			if resp.StatusCode == http.StatusOK {
 				j := len(resp.Cookies())
@@ -135,7 +135,8 @@ func Test_LoginPost(t *testing.T) {
 				require.Nil(t, json.Unmarshal([]byte(tc.resp), &want), tc.resp)
 				require.Nil(t, json.Unmarshal(body, &got), string(body))
 				want.MTime = got.MTime
-				require.Equal(t, want, got)
+				want.CTime = got.CTime
+				require.Equal(t, want, got, string(tc.resp))
 			} else {
 				require.Equal(t, tc.resp, string(body))
 			}
@@ -144,33 +145,35 @@ func Test_LoginPost(t *testing.T) {
 }
 
 func Test_LoginPatch(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
+
+	pwd, bad, changed := shared.Password(""),
+		shared.Password("bad"),
+		shared.Password("snakeoil")
 
 	tcs := map[string]struct {
-		old, new *shared.BasicAuth
+		uid      shared.UUID
+		old, new *shared.Password
 		resp     string
 		sc       int
 	}{
 		"happy_path": {
-			old: &shared.BasicAuth{UUID: users[passchange].UUID},
-			new: &shared.BasicAuth{
-				UUID: users[passchange].UUID,
-				Pass: "changed!",
-			},
-			sc: http.StatusNoContent,
+			uid: users[passchange].UUID,
+			old: &pwd,
+			new: &changed,
+			sc:  http.StatusNoContent,
 		},
 		"bad_pass": {
-			old: &shared.BasicAuth{
-				UUID: users[pwdfail].UUID,
-				Pass: "wrong!",
-			},
-			new:  &shared.BasicAuth{},
+			uid:  users[passchange].UUID,
+			old:  &bad,
+			new:  &changed,
 			sc:   http.StatusBadRequest,
-			resp: shared.PasswordsMatch.Error(),
+			resp: shared.BadUserOrPassError.Error(),
 		},
 		"get_fails": {
-			old:  &shared.BasicAuth{UUID: "users.readonly.UUID"},
-			new:  &shared.BasicAuth{},
+			uid:  "users.readonly.UUID",
+			old:  &pwd,
+			new:  &changed,
 			sc:   http.StatusBadRequest,
 			resp: sql.ErrNoRows.Error(),
 		},
@@ -179,7 +182,7 @@ func Test_LoginPatch(t *testing.T) {
 	for name, tc := range tcs {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
-			t.Parallel()
+			// t.Parallel()
 
 			data, _ := json.Marshal(map[string]interface{}{
 				"new": tc.new,
@@ -191,7 +194,7 @@ func Test_LoginPatch(t *testing.T) {
 				fmt.Sprintf("http://%s:%d/auth/%s",
 					cfg.ServerHost,
 					cfg.ServerPort,
-					tc.old.UUID),
+					tc.uid),
 				bytes.NewReader(data))
 			require.Nil(t, err)
 
@@ -202,10 +205,94 @@ func Test_LoginPatch(t *testing.T) {
 			require.Nil(t, err)
 			defer resp.Body.Close()
 
-			require.Equal(t, tc.sc, resp.StatusCode, string(body))
+			require.Equal(t, tc.sc, resp.StatusCode, "cid: %s, error: %s", resp.Header.Get("Cid"), string(body))
 			require.Equal(t, tc.resp, string(body))
 		})
 	}
+}
+
+func Test_LoginDelete(t *testing.T) {
+	t.Parallel()
+
+	bademail, badcell := shared.Email("bad email"), shared.Cell("bad cell")
+
+	tcs := map[string]struct {
+		login *shared.User
+		redir string
+		sc    int
+	}{
+		"happy_path": {
+			login: users[logindelete],
+			redir: "localhost",
+			sc:    http.StatusNoContent,
+		},
+		"missing_redirect": {
+			login: users[logindelete],
+			sc:    http.StatusBadRequest,
+		},
+		"bad_user": {
+			login: &shared.User{
+				UUID:  "missing",
+				Email: users[logindelete].Email,
+			},
+			redir: "localhost",
+			sc:    http.StatusInternalServerError,
+		},
+		"bad_email": {
+			login: &shared.User{
+				UUID:  users[logindelete].UUID,
+				Email: &bademail,
+			},
+			redir: "localhost",
+			sc:    http.StatusBadRequest,
+		},
+		"bad_cell": {
+			login: &shared.User{
+				UUID: users[logindelete].UUID,
+				Cell: &badcell,
+			},
+			redir: "localhost",
+			sc:    http.StatusBadRequest,
+		},
+		"undeliverable": {
+			login: &shared.User{
+				UUID:  users[logindelete].UUID,
+				Email: nil,
+				Cell:  nil,
+			},
+			redir: "localhost",
+			sc:    http.StatusBadRequest,
+		},
+	}
+
+	for name, tc := range tcs {
+		name, tc := name, tc
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			req, err := http.NewRequest(
+				http.MethodDelete,
+				fmt.Sprintf("http://%s:%d/auth",
+					cfg.ServerHost,
+					cfg.ServerPort),
+				userToDelete(tc.login, tc.redir))
+			require.Nil(t, err)
+
+			resp, err := http.DefaultClient.Do(req)
+			require.Nil(t, err)
+
+			require.Equal(t, tc.sc, resp.StatusCode, "cid: %s", resp.Header.Get("Cid"))
+		})
+	}
+}
+
+func userToDelete(u *shared.User, redirect string) io.Reader {
+	result, _ := json.Marshal(u)
+	temp := map[string]interface{}{}
+	_ = json.Unmarshal(result, &temp)
+	temp["redirect"] = redirect
+	result, _ = json.Marshal(temp)
+	return bytes.NewReader(result)
 }
 
 func authToReader(a *shared.BasicAuth) io.Reader {

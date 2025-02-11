@@ -149,7 +149,6 @@ func TestGetContact(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				nil,
 				mockSqls(),
-				&senderMock{},
 				l,
 				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).getContact(mockContext(shared.CID("TestGetContact-"+name)), "1")
@@ -218,7 +217,6 @@ func TestAddContact(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				mockUUIDGen,
 				mockSqls(),
-				&senderMock{},
 				l,
 				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).addContact(mockContext(shared.CID("TestAddContact-"+name)), tc.userid, tc.contact)
@@ -273,7 +271,6 @@ func TestUpdateContact(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				nil,
 				mockSqls(),
-				&senderMock{},
 				l,
 				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).UpdateContact(mockContext(shared.CID("TestUpdateContact-"+name)), tc.userid, tc.contact))

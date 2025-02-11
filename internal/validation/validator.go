@@ -200,7 +200,7 @@ func (v *core) OTP(ctx context.Context, uid shared.UUID, rmt, three02 string) (s
 	pad := uuid.NewString()
 	key := "pad:" + pad
 	if err := v.authn.HSet(ctx, key, map[string]interface{}{
-		userid:   uid,
+		userid:   string(uid),
 		remote:   rmt,
 		redirect: three02,
 	}).Err(); err != nil {
@@ -330,7 +330,7 @@ func (v *core) clearTokens(ctx context.Context, tokens []string) ([]interface{},
 
 	var result []interface{}
 	for _, token := range tokens {
-		if err := v.authn.HDel(ctx, token, userid, remote).Err(); err != nil {
+		if err := v.authn.HDel(ctx, token, userid, remote, redirect).Err(); err != nil {
 			return result, t.err(err).done("couldn't clear all tokens").err() // what if it just expired?
 		} else {
 			result = append(result, token)

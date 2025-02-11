@@ -9,7 +9,6 @@ import (
 	"time"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
-	"github.com/go-gomail/gomail"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
@@ -28,11 +27,6 @@ type (
 		val any
 	}
 
-	senderMock struct {
-		msgs uint
-		err  error
-	}
-
 	getMockDB func(*sql.DB, sqlmock.Sqlmock, error) *sql.DB
 )
 
@@ -44,7 +38,7 @@ var (
 )
 
 func Test_NewUserService(t *testing.T) {
-	result := NewUserService(nil, nil, nil, logrus.WithTime(time.Now().UTC()), testmetrics)
+	result := NewUserService(nil, nil, logrus.WithTime(time.Now().UTC()), testmetrics)
 	require.NotNil(t, result)
 }
 
@@ -65,6 +59,10 @@ func (v values) replace(r ...repl) values {
 
 	return result
 }
+
+// func Test_hash(t *testing.T) {
+// 	require.Equal(t, 64, len(hash("foobar", generateSalt())), hash("foobar", generateSalt()))
+// }
 
 func mockUUIDGen() shared.UUID {
 	return shared.UUID(uuid.Must(uuid.FromBytes([]byte("0123456789abcdef"))).String())
@@ -101,14 +99,6 @@ func mockContext(cid shared.CID) context.Context {
 		cid,
 	)
 }
-
-func (sm *senderMock) Send(m *gomail.Message) error {
-	sm.msgs++
-
-	return sm.err
-}
-
-func (sm *senderMock) Close() {}
 
 func testLogger(_ *testing.T, fields logrus.Fields) *logrus.Entry {
 	return (&logrus.Logger{

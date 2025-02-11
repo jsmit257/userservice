@@ -122,11 +122,13 @@ user:
      where  uuid = ?
   insert: 
     insert
-      into  users(uuid, name, password, salt, mtime, ctime)
-    values  (?, ?, ?, ?, ?, ?)
+      into  users(uuid, name, email, cell, password, salt, mtime, ctime)
+    values  (?, ?, ?, ?, ?, ?, ?, ?)
   update: 
     update  users
        set  name = ?,
+            email = ?,
+            cell = ?,
             mtime = ?
      where  uuid = ?
   delete: update users set dtime = ? where uuid = ?

@@ -99,7 +99,6 @@ func Test_GetAuthByAttrs(t *testing.T) {
 				tc.db(sqlmock.New()),
 				nil,
 				mockSqls(),
-				&senderMock{},
 				l,
 				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).GetAuthByAttrs(mockContext(shared.CID("Test_GetAuthByAttrs-"+name)), tc.id, tc.name)
@@ -116,7 +115,8 @@ func Test_ChangePassword(t *testing.T) {
 
 	tcs := map[string]struct {
 		db       getMockDB
-		old, new shared.BasicAuth
+		uid      shared.UUID
+		old, new shared.Password
 		err      error
 	}{
 		"happy_path": {
@@ -130,8 +130,8 @@ func Test_ChangePassword(t *testing.T) {
 
 				return db
 			},
-			old: shared.BasicAuth{Pass: "snakeoil"},
-			new: shared.BasicAuth{Pass: "whiskeytango"},
+			old: "snakeoil",
+			new: "whiskeytango",
 		},
 		"too_short": {
 			db: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
@@ -143,8 +143,8 @@ func Test_ChangePassword(t *testing.T) {
 
 				return db
 			},
-			old: shared.BasicAuth{Pass: "snakeoil"},
-			new: shared.BasicAuth{Pass: "shorty"},
+			old: "snakeoil",
+			new: "shorty",
 			err: shared.BadUserOrPassError,
 		},
 		"vanity": {
@@ -157,8 +157,8 @@ func Test_ChangePassword(t *testing.T) {
 
 				return db
 			},
-			old: shared.BasicAuth{Pass: "snakeoil"},
-			new: shared.BasicAuth{Pass: "anaconda"},
+			old: "snakeoil",
+			new: "anaconda",
 			err: shared.PasswordsMatch,
 		},
 		"login_fails": {
@@ -178,8 +178,8 @@ func Test_ChangePassword(t *testing.T) {
 
 				return db
 			},
-			old: shared.BasicAuth{Pass: "snakeoil"},
-			new: shared.BasicAuth{Pass: "snakeoil"},
+			old: "snakeoil",
+			new: "snakeoil",
 			err: shared.PasswordsMatch,
 		},
 	}
@@ -194,10 +194,9 @@ func Test_ChangePassword(t *testing.T) {
 				tc.db(sqlmock.New()),
 				nil,
 				mockSqls(),
-				&senderMock{},
 				l,
 				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
-			}).ChangePassword(mockContext(shared.CID("Test_ResetPassword-"+name)), &tc.old, &tc.new)
+			}).ChangePassword(mockContext(shared.CID("Test_ResetPassword-"+name)), tc.uid, tc.old, tc.new)
 
 			require.Equal(t, tc.err, err)
 		})
@@ -264,7 +263,7 @@ func Test_Login(t *testing.T) {
 
 				return db
 			},
-			err: shared.PasswordsMatch,
+			err: shared.BadUserOrPassError,
 		},
 		"bad_password_exec_fails": {
 			db: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
@@ -316,7 +315,6 @@ func Test_Login(t *testing.T) {
 				tc.db(sqlmock.New()),
 				nil,
 				mockSqls(),
-				&senderMock{},
 				l,
 				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).Login(mockContext(shared.CID("Test_Login-"+name)), &tc.login)
@@ -415,7 +413,6 @@ func Test_ResetPassword(t *testing.T) {
 				tc.db(sqlmock.New()),
 				nil,
 				mockSqls(),
-				&senderMock{},
 				l,
 				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).ResetPassword(mockContext(shared.CID("Test_ResetPassword-"+name)), &tc.login.UUID)
@@ -466,7 +463,6 @@ func Test_updateBasicAuth(t *testing.T) {
 				tc.db(sqlmock.New()),
 				nil,
 				mockSqls(),
-				&senderMock{},
 				l,
 				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).updateBasicAuth(mockContext(shared.CID("Test_updateBasicAuth-"+name)), &tc.login)

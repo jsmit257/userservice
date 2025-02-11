@@ -38,10 +38,10 @@ func Test_NewSqls(t *testing.T) {
 				},
 				"user": map[string]string{
 					"delete":     "update users set dtime = ? where uuid = ?",
-					"insert":     "insert into  users(uuid, name, password, salt, mtime, ctime) values  (?, ?, ?, ?, ?, ?)",
+					"insert":     "insert into  users(uuid, name, email, cell, password, salt, mtime, ctime) values  (?, ?, ?, ?, ?, ?, ?, ?)",
 					"select":     "select  uuid, name, email, cell, mtime, ctime, dtime from  users where  uuid = ?",
 					"select-all": "select  uuid, name, mtime, ctime, dtime from  users",
-					"update":     "update  users set  name = ?, mtime = ? where  uuid = ?",
+					"update":     "update  users set  name = ?, email = ?, cell = ?, mtime = ? where  uuid = ?",
 				},
 			},
 		},

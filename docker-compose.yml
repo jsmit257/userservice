@@ -73,20 +73,20 @@ services:
     hostname: *redis-host
     ports: [ 6666:6379 ]
 
-  maild:
-    image: bytemark/smtp
-    restart: always
-    hostname: *maild-host
-    env_file:
-      - ./bin/env/template
-      - ./bin/env/system
+  # maild:
+  #   image: bytemark/smtp
+  #   restart: always
+  #   hostname: *maild-host
+  #   env_file:
+  #     - ./bin/env/template
+  #     - ./bin/env/system
 
   serve-mysql:
     # the main service, requires some database (we don't know which, so we
     # can't set it here) and of course, redis is just redis
     depends_on:
       - redis
-      - maild
+      # - maild
     image: jsmit257/us-srv-mysql:latest
     build: .
     hostname: *http-host

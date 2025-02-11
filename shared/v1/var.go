@@ -11,9 +11,9 @@ var (
 	AddressNotAddedError   = fmt.Errorf("address was not added")
 	AddressNotUpdatedError = fmt.Errorf("address was not updated")
 
-	BadUserOrPassError  = fmt.Errorf("bad username or password")
-	MaxFailedLoginError = fmt.Errorf("too many failed login attempts")
-	MissingAuthToken    = fmt.Errorf("missing auth token")
+	BadUserOrPassError  CustomError = fmt.Errorf("bad username or password")
+	MaxFailedLoginError CustomError = fmt.Errorf("too many failed login attempts")
+	MissingAuthToken    CustomError = fmt.Errorf("missing auth token")
 
 	RedisTokenFail = fmt.Errorf("failed redis login token")
 

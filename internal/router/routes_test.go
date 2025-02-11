@@ -56,7 +56,7 @@ func Test_NewInstance(t *testing.T) {
 	}, config.NewConfig(), nil)
 }
 
-func Test_setContext(t *testing.T) {
+func Test_WrapContext(t *testing.T) {
 	t.Parallel()
 
 	tcs := map[string]struct {

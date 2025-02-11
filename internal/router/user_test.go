@@ -145,6 +145,8 @@ func Test_GetUser(t *testing.T) {
 func Test_PostUser(t *testing.T) {
 	t.Parallel()
 
+	addr := shared.Email("email")
+
 	tcs := map[string]struct {
 		u        *mockUserer
 		r        *shared.User
@@ -155,7 +157,10 @@ func Test_PostUser(t *testing.T) {
 			u: &mockUserer{
 				postUserResp: &shared.User{UUID: "1"},
 			},
-			r:        &shared.User{UUID: "1"},
+			r: &shared.User{
+				UUID:  "1",
+				Email: &addr,
+			},
 			sc:       http.StatusCreated,
 			response: "1",
 		},
@@ -169,12 +174,17 @@ func Test_PostUser(t *testing.T) {
 			r:  &shared.User{},
 			sc: http.StatusBadRequest,
 		},
+		"undeliverable": {
+			r:        &shared.User{},
+			sc:       http.StatusBadRequest,
+			response: "no valid email or SMS provided",
+		},
 		"adduser_fails": {
 			u: &mockUserer{
 				postUserResp: &shared.User{},
 				postUserErr:  fmt.Errorf("some error"),
 			},
-			r:  &shared.User{},
+			r:  &shared.User{Email: &addr},
 			sc: http.StatusInternalServerError,
 		},
 		"user_exists": {
@@ -182,7 +192,10 @@ func Test_PostUser(t *testing.T) {
 				postUserResp: &shared.User{},
 				postUserErr:  shared.UserExistsError,
 			},
-			r:        &shared.User{UUID: "1"},
+			r: &shared.User{
+				UUID:  "1",
+				Email: &addr,
+			},
 			sc:       http.StatusBadRequest,
 			response: shared.UserExistsError.Error(),
 		},
@@ -191,14 +204,19 @@ func Test_PostUser(t *testing.T) {
 				postUserResp: &shared.User{},
 				postUserErr:  shared.UserNotAddedError,
 			},
-			r:  &shared.User{UUID: "1"},
+			r: &shared.User{
+				UUID:  "1",
+				Email: &addr,
+			},
 			sc: http.StatusConflict,
 		},
 		"user_not_found": {
 			u: &mockUserer{
 				postUserResp: &shared.User{},
 			},
-			r:  &shared.User{},
+			r: &shared.User{
+				Email: &addr,
+			},
 			sc: http.StatusInternalServerError,
 		},
 	}
@@ -239,6 +257,9 @@ func Test_PostUser(t *testing.T) {
 
 func Test_PatchUser(t *testing.T) {
 	t.Parallel()
+
+	addr := shared.Email("addr")
+
 	tcs := map[string]struct {
 		u       *mockUserer
 		r       *shared.User
@@ -249,8 +270,17 @@ func Test_PatchUser(t *testing.T) {
 		"happy_path": {
 			u:       &mockUserer{},
 			userIDs: []string{"1"},
-			r:       &shared.User{UUID: "1"},
-			sc:      http.StatusNoContent,
+			r: &shared.User{
+				UUID:  "1",
+				Email: &addr,
+			},
+			sc: http.StatusNoContent,
+		},
+		"missing_param": {
+			u:       &mockUserer{},
+			userIDs: []string{""},
+			r:       &shared.User{},
+			sc:      http.StatusBadRequest,
 		},
 		"unmarshal_fails": {
 			u:       &mockUserer{},
@@ -264,11 +294,19 @@ func Test_PatchUser(t *testing.T) {
 			r:       &shared.User{UUID: "1"},
 			sc:      http.StatusBadRequest,
 		},
+		"undeliverable": {
+			r:       &shared.User{UUID: "1"},
+			userIDs: []string{"1"},
+			sc:      http.StatusBadRequest,
+		},
 		"update_fails": {
 			u:       &mockUserer{patchUserErr: fmt.Errorf("some error")},
 			userIDs: []string{"1"},
-			r:       &shared.User{UUID: "1"},
-			sc:      http.StatusInternalServerError,
+			r: &shared.User{
+				UUID:  "1",
+				Email: &addr,
+			},
+			sc: http.StatusInternalServerError,
 		},
 	}
 	for name, tc := range tcs {

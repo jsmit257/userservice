@@ -88,7 +88,6 @@ func TestGetAllAddresses(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				nil,
 				mockSqls(),
-				&senderMock{},
 				l,
 				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).GetAllAddresses(mockContext(cid))
@@ -136,7 +135,6 @@ func TestGetAddress(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				nil,
 				mockSqls(),
-				&senderMock{},
 				l,
 				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).GetAddress(mockContext(cid), "1")
@@ -194,7 +192,6 @@ func TestAddAddress(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				mockUUIDGen,
 				mockSqls(),
-				&senderMock{},
 				l,
 				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).AddAddress(mockContext(cid), tc.addr)
@@ -248,7 +245,6 @@ func TestUpdateAddress(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				nil,
 				mockSqls(),
-				&senderMock{},
 				l,
 				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).UpdateAddress(mockContext(cid), tc.addr))

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/jsmit257/userservice/shared/v1"
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +34,6 @@ func Test_GetAuth(t *testing.T) {
 
 	tcs := map[string]struct {
 		u        *mockAuther
-		header   http.Header
 		username string
 		response string
 		sc       int
@@ -50,24 +50,18 @@ func Test_GetAuth(t *testing.T) {
 				MTime: time.Time{},
 				CTime: time.Time{},
 			}),
-			header: http.Header{
-				"Content-Type": []string{"application/json"},
-				"Location":     []string{"/auth/uuid"},
-			},
-			sc: http.StatusFound,
+			sc: http.StatusOK,
 		},
 		"missing_username": {
 			u:        &mockAuther{},
 			sc:       http.StatusBadRequest,
 			response: "missing parameter",
-			header:   http.Header{},
 		},
 		"get_user_fails": {
 			u:        &mockAuther{getErr: fmt.Errorf("some error")},
 			sc:       http.StatusBadRequest,
 			username: "get_user_fails",
 			response: "some error",
-			header:   http.Header{},
 		},
 	}
 	for name, tc := range tcs {
@@ -96,7 +90,6 @@ func Test_GetAuth(t *testing.T) {
 
 			require.Equal(t, tc.sc, w.Code)
 			require.Equal(t, tc.response, string(resp))
-			require.Equal(t, tc.header, w.Header())
 		})
 	}
 }
@@ -104,23 +97,34 @@ func Test_GetAuth(t *testing.T) {
 func Test_PostLogin(t *testing.T) {
 	t.Parallel()
 
+	uid := shared.UUID(uuid.NewString()[:5])
+
 	tcs := map[string]struct {
 		a        *mockAuther
 		u        *mockUserer
 		v        *mockValidator
+		pad      string
+		cookie   *http.Cookie
 		login    shared.BasicAuth
 		response *shared.User
 		sc       int
 	}{
 		"happy_path": {
-			a: &mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
-			u: &mockUserer{user: &shared.User{UUID: "uuid"}},
+			a: &mockAuther{login: &shared.BasicAuth{UUID: uid}},
+			u: &mockUserer{user: &shared.User{UUID: uid}},
 			v: &mockValidator{
-				login:   &testCookie,
-				loginsc: http.StatusOK,
+				login:         &testCookie,
+				loginsc:       http.StatusOK,
+				validateotp:   uid,
+				validateotpsc: http.StatusOK,
 			},
-			login:    shared.BasicAuth{},
-			response: &shared.User{UUID: "uuid"},
+			pad: "pad",
+			cookie: &http.Cookie{
+				Name:  "us-authn",
+				Value: "token",
+			},
+			login:    shared.BasicAuth{UUID: uid},
+			response: &shared.User{UUID: uid},
 			sc:       http.StatusOK,
 		},
 		"validation_rails": {
@@ -140,6 +144,34 @@ func Test_PostLogin(t *testing.T) {
 		"unmarshal_fails": {
 			a:  &mockAuther{getErr: fmt.Errorf("some error")},
 			sc: http.StatusBadRequest,
+		},
+		"cookie_missing": {
+			a:   &mockAuther{getErr: fmt.Errorf("some error")},
+			pad: "pad",
+			sc:  http.StatusForbidden,
+		},
+		"validate_fails": {
+			a:   &mockAuther{getErr: fmt.Errorf("some error")},
+			pad: "pad",
+			cookie: &http.Cookie{
+				Name:  "us-authn",
+				Value: "token",
+			},
+			v:  &mockValidator{validateotpsc: http.StatusForbidden},
+			sc: http.StatusForbidden,
+		},
+		"uuid_mismatch": {
+			a:   &mockAuther{getErr: fmt.Errorf("some error")},
+			pad: "pad",
+			cookie: &http.Cookie{
+				Name:  "us-authn",
+				Value: "token",
+			},
+			v: &mockValidator{
+				validateotp:   "uid",
+				validateotpsc: http.StatusOK,
+			},
+			sc: http.StatusForbidden,
 		},
 		"login_fails": {
 			a:  &mockAuther{loginErr: fmt.Errorf("some error")},
@@ -182,6 +214,10 @@ func Test_PostLogin(t *testing.T) {
 				"tc.url",
 				bodyreader,
 			)
+			r.Header.Set("Authn-Pad", tc.pad)
+			if tc.cookie != nil {
+				r.AddCookie(tc.cookie)
+			}
 
 			us.PostLogin(w, r)
 
@@ -202,48 +238,52 @@ func Test_PostLogin(t *testing.T) {
 func Test_PatchLogin(t *testing.T) {
 	t.Parallel()
 
+	pass := shared.Password("password")
+
 	tcs := map[string]struct {
 		a        *mockAuther
 		v        *mockValidator
-		new, old *shared.BasicAuth
+		uid      shared.UUID
+		new, old *shared.Password
 		sc       int
 	}{
 		"happy_path": {
 			a:   &mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
 			v:   &mockValidator{login: &http.Cookie{}, loginsc: http.StatusOK},
-			old: &shared.BasicAuth{},
-			new: &shared.BasicAuth{},
+			uid: "uuid",
+			old: &pass,
+			new: &pass,
 			sc:  http.StatusNoContent,
 		},
-		"read_fails": {
+		"param_missing": {
 			a:  &mockAuther{},
 			sc: http.StatusBadRequest,
 		},
-		"unmarshal_fails": {
-			a:  &mockAuther{getErr: fmt.Errorf("some error")},
-			sc: http.StatusBadRequest,
-		},
-		"nil_old": {
-			a:   &mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
-			new: &shared.BasicAuth{},
+		"read_fails": {
+			a:   &mockAuther{},
+			uid: "user_id",
+			old: &pass,
 			sc:  http.StatusBadRequest,
 		},
-		"nil_new": {
-			a:   &mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
-			old: &shared.BasicAuth{},
+		"unmarshal_fails": {
+			a:   &mockAuther{getErr: fmt.Errorf("some error")},
+			uid: "uuid",
+			old: &pass,
 			sc:  http.StatusBadRequest,
 		},
 		"change_fails": {
 			a:   &mockAuther{change: fmt.Errorf("some error")},
-			old: &shared.BasicAuth{},
-			new: &shared.BasicAuth{},
+			uid: "uuid",
+			old: &pass,
+			new: &pass,
 			sc:  http.StatusBadRequest,
 		},
 		"authn_login_fails": {
 			a:   &mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
 			v:   &mockValidator{login: nil, loginsc: http.StatusForbidden},
-			old: &shared.BasicAuth{},
-			new: &shared.BasicAuth{},
+			uid: "uuid",
+			old: &pass,
+			new: &pass,
 			sc:  http.StatusForbidden,
 		},
 	}
@@ -258,9 +298,9 @@ func Test_PatchLogin(t *testing.T) {
 				Validator: tc.v,
 			}
 
-			body := mustJSON(map[string]interface{}{
-				"Old": tc.old,
-				"New": tc.new,
+			body := mustJSON(map[string]*shared.Password{
+				"old": tc.old,
+				"new": tc.new,
 			})
 			if name == "unmarshal_fails" {
 				body = body[1:]
@@ -271,12 +311,15 @@ func Test_PatchLogin(t *testing.T) {
 				bodyreader = errReader(name)
 			}
 
+			rctx := chi.NewRouteContext()
+			rctx.URLParams = chi.RouteParams{Keys: []string{"user_id"}, Values: []string{string(tc.uid)}}
+
 			w := httptest.NewRecorder()
 			r, _ := http.NewRequestWithContext(
 				context.WithValue(
 					mockContext(),
 					chi.RouteCtxKey,
-					chi.NewRouteContext()),
+					rctx),
 				http.MethodGet,
 				"tc.url",
 				bodyreader,
@@ -291,10 +334,10 @@ func Test_PatchLogin(t *testing.T) {
 
 func Test_DeleteLogin(t *testing.T) {
 	var (
-		addr    = "addr"
-		badaddr = "badaddr"
-		cell    = "cell"
-		badcell = "badcell"
+		addr    shared.Email = "addr"
+		badaddr shared.Email = "badaddr"
+		cell    shared.Cell  = "cell"
+		badcell shared.Cell  = "badcell"
 	)
 
 	t.Parallel()
@@ -350,19 +393,23 @@ func Test_DeleteLogin(t *testing.T) {
 		"unmarshal_fails": {
 			sc: http.StatusBadRequest,
 		},
-		"missing_redirect": {
-			u:  mockUserer{userErr: fmt.Errorf("some error")},
+		"login_undeliverable": {
 			sc: http.StatusBadRequest,
+		},
+		"missing_redirect": {
+			u:     mockUserer{userErr: fmt.Errorf("some error")},
+			login: shared.User{Email: &addr},
+			sc:    http.StatusBadRequest,
 		},
 		"get_user_fails": {
 			u:     mockUserer{userErr: fmt.Errorf("some error")},
-			login: shared.User{UUID: "uuid"},
+			login: shared.User{UUID: "uuid", Email: &addr},
 			sc:    http.StatusInternalServerError,
 			loc:   "redirect",
 		},
 		"undeliverable": {
 			u:     mockUserer{user: &shared.User{UUID: "uuid"}},
-			login: shared.User{UUID: "uuid"},
+			login: shared.User{UUID: "uuid", Email: &addr},
 			sc:    http.StatusBadRequest,
 			loc:   "redirect",
 		},
@@ -501,7 +548,7 @@ func authToBody(a *shared.BasicAuth) string {
 func (ma *mockAuther) GetAuthByAttrs(context.Context, *shared.UUID, *string) (*shared.BasicAuth, error) {
 	return ma.get, ma.getErr
 }
-func (ma *mockAuther) ChangePassword(context.Context, *shared.BasicAuth, *shared.BasicAuth) error {
+func (ma *mockAuther) ChangePassword(context.Context, shared.UUID, shared.Password, shared.Password) error {
 	return ma.change
 }
 func (ma *mockAuther) Login(context.Context, *shared.BasicAuth) (*shared.BasicAuth, error) {

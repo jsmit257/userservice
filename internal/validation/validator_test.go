@@ -407,7 +407,7 @@ func Test_LoginOTP(t *testing.T) {
 		remote: remote,
 	})
 	mock.ExpectSMembers("logins:" + userid).SetVal([]string{"pad:1"})
-	mock.ExpectHDel("pad:1", userid, remote).SetErr(fmt.Errorf("some error"))
+	mock.ExpectHDel("pad:1", userid, remote, redirect).SetErr(fmt.Errorf("some error"))
 	loc, cookie, sc = v.LoginOTP(ctx, userid, remote)
 	require.Equal(t, http.StatusInternalServerError, sc, cookie)
 	require.Equal(t, "/", loc)
@@ -418,7 +418,7 @@ func Test_LoginOTP(t *testing.T) {
 		remote: remote,
 	})
 	mock.ExpectSMembers("logins:" + userid).SetVal([]string{"pad:1"})
-	mock.ExpectHDel("pad:1", userid, remote).SetVal(2)
+	mock.ExpectHDel("pad:1", userid, remote, redirect).SetVal(3)
 	mock.ExpectSRem("logins:"+userid, "pad:1").SetErr(fmt.Errorf("some error"))
 	loc, cookie, sc = v.LoginOTP(ctx, "1", remote)
 	require.Equal(t, http.StatusInternalServerError, sc, cookie)
@@ -430,7 +430,7 @@ func Test_LoginOTP(t *testing.T) {
 		remote: remote,
 	})
 	mock.ExpectSMembers("logins:" + userid).SetVal([]string{"pad:1"})
-	mock.ExpectHDel("pad:1", userid, remote).SetVal(2)
+	mock.ExpectHDel("pad:1", userid, remote, redirect).SetVal(3)
 	mock.ExpectSRem("logins:"+userid, "pad:1").SetVal(1)
 	mock.ExpectSMembers("logins:userid").SetErr(fmt.Errorf("some error"))
 	loc, cookie, sc = v.LoginOTP(ctx, "1", remote)
@@ -442,9 +442,7 @@ func Test_LoginOTP(t *testing.T) {
 		userid: userid,
 		remote: remote,
 	})
-	mock.ExpectSMembers("logins:" + userid).SetVal([]string{"pad:1"})
-	mock.ExpectHDel("pad:1", userid, remote).SetVal(2)
-	mock.ExpectSRem("logins:"+userid, "pad:1").SetVal(1)
+	mock.ExpectSMembers("logins:userid").SetErr(redis.Nil)
 	mock.ExpectSMembers("logins:userid").SetVal([]string{})
 	mock.Regexp().ExpectHSet("token:.*", map[string]interface{}{
 		userid: userid,
@@ -462,9 +460,7 @@ func Test_LoginOTP(t *testing.T) {
 		userid: userid,
 		remote: remote,
 	})
-	mock.ExpectSMembers("logins:" + userid).SetVal([]string{"pad:1"})
-	mock.ExpectHDel("pad:1", userid, remote).SetVal(2)
-	mock.ExpectSRem("logins:"+userid, "pad:1").SetVal(1)
+	mock.ExpectSMembers("logins:userid").SetErr(redis.Nil)
 	mock.ExpectSMembers("logins:userid").SetVal([]string{})
 	mock.Regexp().ExpectHSet("token:.*", map[string]interface{}{
 		userid: userid,
@@ -482,9 +478,7 @@ func Test_LoginOTP(t *testing.T) {
 		userid: userid,
 		remote: remote,
 	})
-	mock.ExpectSMembers("logins:" + userid).SetVal([]string{"pad:1"})
-	mock.ExpectHDel("pad:1", userid, remote).SetVal(2)
-	mock.ExpectSRem("logins:"+userid, "pad:1").SetVal(1)
+	mock.ExpectSMembers("logins:userid").SetErr(redis.Nil)
 	mock.ExpectSMembers("logins:userid").SetVal([]string{})
 	mock.Regexp().ExpectHSet("token:.*", map[string]interface{}{
 		userid: userid,
@@ -505,9 +499,7 @@ func Test_LoginOTP(t *testing.T) {
 		remote:   remote,
 		redirect: "",
 	})
-	mock.ExpectSMembers("logins:" + userid).SetVal([]string{"pad:1"})
-	mock.ExpectHDel("pad:1", userid, remote).SetVal(2)
-	mock.ExpectSRem("logins:"+userid, "pad:1").SetVal(1)
+	mock.ExpectSMembers("logins:userid").SetErr(redis.Nil)
 	mock.ExpectSMembers("logins:userid").SetVal([]string{})
 	mock.Regexp().ExpectHSet("token:.*", map[string]interface{}{
 		userid: userid,
@@ -528,9 +520,7 @@ func Test_LoginOTP(t *testing.T) {
 		remote:   remote,
 		redirect: redirect,
 	})
-	mock.ExpectSMembers("logins:" + userid).SetVal([]string{"pad:1"})
-	mock.ExpectHDel("pad:1", userid, remote).SetVal(2)
-	mock.ExpectSRem("logins:"+userid, "pad:1").SetVal(1)
+	mock.ExpectSMembers("logins:userid").SetErr(redis.Nil)
 	// the rest is from Test_Login happy path
 	mock.ExpectSMembers("logins:userid").SetVal([]string{})
 	mock.Regexp().ExpectHSet("token:.*", map[string]interface{}{

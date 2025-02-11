@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/go-gomail/gomail"
 )
 
 // convenience method for getting the authentication state from
@@ -66,4 +68,73 @@ func CheckOTP(host string, port uint16, cookie *http.Cookie, pad string) (UUID, 
 	}
 
 	return result, resp.StatusCode
+}
+
+func (u *User) Undeliverable() bool {
+	if u.Email != nil && len(*u.Email) != 0 {
+		return false
+	} else if u.Cell != nil && len(*u.Cell) != 0 {
+		return false
+	}
+
+	return true
+}
+
+func (u *User) PasswordResetEmail(host, token string) *gomail.Message {
+	if u.Email == nil {
+		return nil
+	}
+
+	var emailTmpl string = `<a "href=https://%s/otp/%s">Change Password</a>` // where does this thing go?
+
+	m := gomail.NewMessage()
+	m.SetHeader("From", "no-reply@cffc.io")
+	m.SetHeader("To", string(*u.Email))
+	m.SetBody("text/html", fmt.Sprintf(
+		emailTmpl,
+		host,
+		token,
+	))
+
+	return m
+}
+
+func (u *User) PasswordResetSMS(string) any {
+	if u.Cell == nil {
+		return nil
+	}
+
+	return func() {}
+}
+
+func (p Password) Valid() bool {
+	if len(p) < 8 {
+		return false
+	}
+	return true
+}
+
+func (e *Email) Valid() bool {
+	if e == nil {
+		return false
+	} else if len(*e) == 0 {
+		return false
+	}
+	return true
+}
+
+func (c *Cell) Valid() bool {
+	if c == nil {
+		return false
+	} else if len(*c) == 0 {
+		return false
+	}
+	return true
+}
+
+func (a BasicAuth) Redact() BasicAuth {
+	a.Pass = ""
+	a.Salt = ""
+
+	return a
 }

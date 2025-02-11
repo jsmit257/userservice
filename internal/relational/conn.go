@@ -2,7 +2,9 @@ package data
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -11,8 +13,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/jsmit257/userservice/internal/config"
-	"github.com/jsmit257/userservice/internal/maild"
-	"github.com/jsmit257/userservice/internal/router"
 	"github.com/jsmit257/userservice/shared/v1"
 )
 
@@ -20,8 +20,8 @@ type (
 	Conn struct {
 		query
 		uuidgen
-		sqls    config.Sqls
-		mx      maild.Sender
+		sqls config.Sqls
+		// mx      maild.Sender
 		log     *logrus.Entry
 		metrics *prometheus.CounterVec
 	}
@@ -39,19 +39,19 @@ type (
 	userVec struct{ *prometheus.CounterVec }
 )
 
-func NewUserService(db *sql.DB, sqls config.Sqls, mx maild.Sender, l *logrus.Entry, m *prometheus.CounterVec) *router.UserService {
-	conn := &Conn{db, uuidGen, sqls, mx, l.WithFields(logrus.Fields{
+func NewUserService(db *sql.DB, sqls config.Sqls, l *logrus.Entry, m *prometheus.CounterVec) *Conn {
+	return &Conn{db, uuidGen, sqls, l.WithFields(logrus.Fields{
 		"pkg": "data",
 		"db":  "mysql",
 	}), m.MustCurryWith(prometheus.Labels{
 		"db": "mysql",
 	})}
-	return &router.UserService{
-		Addresser: conn,
-		Auther:    conn,
-		Contacter: conn,
-		Userer:    conn,
-	}
+}
+
+func Obfuscate(s string) string {
+	result, _ := uuid.FromBytes([]byte(s + "abcdefghijklmnop")[:16])
+	sum := sha256.Sum256([]byte(result.String()))
+	return hex.EncodeToString(sum[:])
 }
 
 func (db *Conn) logging(fn string, key any, cid shared.CID) (deferred, *logrus.Entry) {
@@ -63,7 +63,7 @@ func (db *Conn) logging(fn string, key any, cid shared.CID) (deferred, *logrus.E
 	})
 
 	if key != nil {
-		l = l.WithField("key", key)
+		l = l.WithFields(logrus.Fields{"key": key})
 	}
 
 	m := userVec{db.metrics}.labels(prometheus.Labels{"function": fn})
@@ -97,10 +97,20 @@ func uuidGen() shared.UUID {
 	return shared.UUID(uuid.NewString())
 }
 
-func hash(pass, salt string) string {
-	return pass + salt
+func hash(pass shared.Password, salt string) shared.Password {
+	// result := string(pass)
+	// for i, sum := 0, [32]byte{}; i < 483; i++ {
+	// 	result += salt
+	// 	sum = sha256.Sum256([]byte(result))
+	// 	result = string(sum[:])
+	// }
+	// return shared.Password(hex.EncodeToString([]byte(result)))
+	return pass + shared.Password(salt)
 }
 
 func generateSalt() string {
+	// result := make([]byte, 4)
+	// _, _ = rand.Read(result)
+	// return string(result)
 	return "salt"
 }

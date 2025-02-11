@@ -27,7 +27,7 @@ type mockValidator struct {
 	loginotpsc int
 
 	validateotp   shared.UUID
-	validateoptsc int
+	validateotpsc int
 }
 
 var testCookie = http.Cookie{
@@ -224,7 +224,7 @@ func Test_PostValidateOTP(t *testing.T) {
 			pad:   "pad",
 			v: &mockValidator{
 				validateotp:   "uid",
-				validateoptsc: http.StatusOK,
+				validateotpsc: http.StatusOK,
 			},
 			sc: http.StatusOK,
 		},
@@ -288,5 +288,5 @@ func (mv *mockValidator) LoginOTP(context.Context, string, string) (string, *htt
 	return mv.loginloc, mv.loginotp, mv.loginotpsc
 }
 func (mv *mockValidator) ValidateOTP(context.Context, string, string) (shared.UUID, int) {
-	return mv.validateotp, mv.validateoptsc
+	return mv.validateotp, mv.validateotpsc
 }

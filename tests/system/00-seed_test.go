@@ -28,6 +28,7 @@ const (
 	pwdtest
 	passchange
 	pwdfail
+	logindelete
 	last // leave this at the end and probably don't use it
 )
 
@@ -40,6 +41,8 @@ func Test_SeedUsers(t *testing.T) {
 	for i, j := 0, last; i < j; i++ {
 		i := i
 		name := fmt.Sprintf("user_%d", i)
+		email := shared.Email(name)
+		cell := shared.Cell(name)
 
 		t.Run(name, func(t *testing.T) {
 			// t.Parallel()
@@ -47,7 +50,11 @@ func Test_SeedUsers(t *testing.T) {
 			req, err := http.NewRequest(
 				http.MethodPost,
 				fmt.Sprintf("http://%s:%d/user", cfg.ServerHost, cfg.ServerPort),
-				userToReader(&shared.User{Name: name}))
+				userToReader(&shared.User{
+					Name:  name,
+					Email: &email,
+					Cell:  &cell,
+				}))
 			require.Nil(t, err)
 
 			resp, err := (&http.Client{

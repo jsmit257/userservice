@@ -5,9 +5,13 @@ import (
 )
 
 type (
-	UUID   string
-	CID    string
-	CTXKey string
+	UUID        string
+	Password    string
+	Email       string
+	Cell        string
+	CID         string
+	CTXKey      string
+	CustomError error
 
 	Address struct {
 		UUID    UUID      `json:"id" mysql:"uuid"`
@@ -24,7 +28,7 @@ type (
 	BasicAuth struct {
 		UUID         UUID       `json:"id" mysql:"uuid"`
 		Name         string     `json:"username" mysql:"name"`
-		Pass         string     `json:"password,omitempty" mysql:"password"`
+		Pass         Password   `json:"password,omitempty" mysql:"password"`
 		Salt         string     `json:"-" mysql:"salt"`
 		LoginSuccess *time.Time `json:"login_success,omitempty" mysql:"loginsuccess"`
 		LoginFailure *time.Time `json:"login_failure,omitempty" mysql:"loginfailure"`
@@ -47,8 +51,8 @@ type (
 		UUID    UUID       `json:"id" mysql:"uuid"`
 		Name    string     `json:"username" mysql:"name"`
 		Contact *Contact   `json:"contact,omitempty"`
-		Email   *string    `json:"email,omitempty"`
-		Cell    *string    `json:"cell,omitempty"`
+		Email   *Email     `json:"email,omitempty"`
+		Cell    *Cell      `json:"cell,omitempty"`
 		MTime   time.Time  `json:"mtime" mysql:"mtime"`
 		CTime   time.Time  `json:"ctime" mysql:"ctime"`
 		DTime   *time.Time `json:"dtime,omitempty" mysql:"dtime"`

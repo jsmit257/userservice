@@ -14,7 +14,7 @@ type (
 
 	Auther interface {
 		GetAuthByAttrs(context.Context, *UUID, *string) (*BasicAuth, error)
-		ChangePassword(context.Context, *BasicAuth, *BasicAuth) error
+		ChangePassword(context.Context, UUID, Password, Password) error
 		Login(context.Context, *BasicAuth) (*BasicAuth, error)
 		ResetPassword(context.Context, *UUID) error
 	}
@@ -34,10 +34,3 @@ type (
 		CreateContact(context.Context, *User, Contact) (*Contact, error)
 	}
 )
-
-func (a BasicAuth) Redact() BasicAuth {
-	a.Pass = ""
-	a.Salt = ""
-
-	return a
-}

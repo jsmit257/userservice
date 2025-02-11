@@ -29,20 +29,20 @@ func (db *Conn) GetAuthByAttrs(ctx context.Context, id *shared.UUID, name *strin
 	return result, done(err, log)
 }
 
-func (db *Conn) ChangePassword(ctx context.Context, old, new *shared.BasicAuth) error {
-	done, log := db.logging("ChangePassword", old.UUID, ctx.Value(shared.CTXKey("cid")).(shared.CID))
+func (db *Conn) ChangePassword(ctx context.Context, uid shared.UUID, old, new shared.Password) error {
+	done, log := db.logging("ChangePassword", uid, ctx.Value(shared.CTXKey("cid")).(shared.CID))
 
-	auth, err := db.Login(ctx, old)
+	auth, err := db.Login(ctx, &shared.BasicAuth{UUID: uid, Pass: old})
 	if err != nil {
 		return done(err, log)
-	} else if err = validate(auth.Name, new.Pass, auth.Pass, auth.Salt); err != nil {
+	} else if err = validate(auth, new); err != nil {
 		return done(err, log)
 	}
 
 	now := time.Now().UTC()
 
 	auth.Salt = generateSalt()
-	auth.Pass = hash(new.Pass, auth.Salt)
+	auth.Pass = hash(new, auth.Salt)
 	auth.LoginSuccess = &now
 	auth.FailureCount = 0
 
@@ -51,16 +51,27 @@ func (db *Conn) ChangePassword(ctx context.Context, old, new *shared.BasicAuth) 
 	return done(err, log)
 }
 
-func (db *Conn) Login(ctx context.Context, login *shared.BasicAuth) (*shared.BasicAuth, error) {
-	done, log := db.logging("Login", login.UUID, ctx.Value(shared.CTXKey("cid")).(shared.CID))
+func (db *Conn) SoftLogin(ctx context.Context, login *shared.BasicAuth) (*shared.BasicAuth, error) {
+	done, log := db.logging("SoftLogin", login.UUID, ctx.Value(shared.CTXKey("cid")).(shared.CID))
 
-	now := time.Now().UTC()
 	result, err := db.GetAuthByAttrs(ctx, &login.UUID, nil)
 	if err != nil {
 		return result, done(err, log)
 	} else if result.FailureCount > maxfailure {
 		err = shared.MaxFailedLoginError
 	} else if hash(login.Pass, result.Salt) != result.Pass {
+		err = shared.BadUserOrPassError
+	}
+
+	return result, done(err, log)
+}
+
+func (db *Conn) Login(ctx context.Context, login *shared.BasicAuth) (*shared.BasicAuth, error) {
+	done, log := db.logging("Login", login.UUID, ctx.Value(shared.CTXKey("cid")).(shared.CID))
+
+	now := time.Now().UTC()
+	result, err := db.SoftLogin(ctx, login)
+	if err == shared.BadUserOrPassError {
 		if err = db.updateBasicAuth(
 			ctx,
 			&shared.BasicAuth{
@@ -72,20 +83,22 @@ func (db *Conn) Login(ctx context.Context, login *shared.BasicAuth) (*shared.Bas
 				FailureCount: result.FailureCount + 1,
 			},
 		); err == nil {
-			err = shared.PasswordsMatch
+			err = shared.BadUserOrPassError
 		}
-	} else if err = db.updateBasicAuth(
-		ctx,
-		&shared.BasicAuth{
-			UUID:         result.UUID,
-			Pass:         result.Pass,
-			Salt:         result.Salt,
-			LoginSuccess: &now,
-			LoginFailure: result.LoginFailure,
-			FailureCount: 0,
-		},
-	); err == nil {
-		result.LoginSuccess = &now
+	} else if err == nil {
+		if err = db.updateBasicAuth(
+			ctx,
+			&shared.BasicAuth{
+				UUID:         result.UUID,
+				Pass:         result.Pass,
+				Salt:         result.Salt,
+				LoginSuccess: &now,
+				LoginFailure: result.LoginFailure,
+				FailureCount: 0,
+			},
+		); err == nil {
+			result.LoginSuccess = &now
+		}
 	}
 
 	return result, done(err, log)
@@ -101,8 +114,8 @@ func (db *Conn) ResetPassword(ctx context.Context, id *shared.UUID) error {
 
 	now := time.Now().UTC()
 
-	auth.Pass = ""
-	auth.Salt = ""
+	auth.Salt = generateSalt()
+	auth.Pass = hash(shared.Password(Obfuscate(string(auth.UUID))), auth.Salt)
 	auth.LoginSuccess = &now
 	auth.FailureCount = 0
 
@@ -130,12 +143,12 @@ func (db *Conn) updateBasicAuth(ctx context.Context, login *shared.BasicAuth) er
 	return done(err, log)
 }
 
-func validate(username, newpass, oldpass, oldsalt string) error {
-	if len(newpass) < 8 {
+func validate(old *shared.BasicAuth, new shared.Password) error {
+	if !new.Valid() { // all the complexity rules
 		return shared.BadUserOrPassError
-	} else if newpass == username {
+	} else if string(new) == old.Name { // can't use username as password
 		return shared.PasswordsMatch
-	} else if hash(newpass, oldsalt) == oldpass {
+	} else if hash(new, old.Salt) == old.Pass { // can't re-use passwords
 		return shared.PasswordsMatch
 	}
 	return nil

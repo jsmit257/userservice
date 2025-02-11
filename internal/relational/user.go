@@ -62,6 +62,10 @@ func (db *Conn) GetUser(ctx context.Context, id shared.UUID) (*shared.User, erro
 func (db *Conn) AddUser(ctx context.Context, u *shared.User) (shared.UUID, error) {
 	done, log := db.logging("AddUser", u, ctx.Value(shared.CTXKey("cid")).(shared.CID))
 
+	if !u.Email.Valid() && !u.Cell.Valid() {
+		return "", shared.Undeliverable
+	}
+
 	now := time.Now().UTC()
 	u.UUID = db.uuidgen()
 	u.MTime = now
@@ -71,6 +75,8 @@ func (db *Conn) AddUser(ctx context.Context, u *shared.User) (shared.UUID, error
 	result, err := db.ExecContext(ctx, db.sqls["user"]["insert"],
 		u.UUID,
 		u.Name,
+		u.Email,
+		u.Cell,
 		"", //hash("password", salt),
 		"", //salt,
 		now,
@@ -96,6 +102,8 @@ func (db *Conn) UpdateUser(ctx context.Context, u *shared.User) error {
 	u.MTime = time.Now().UTC()
 	result, err := db.ExecContext(ctx, db.sqls["user"]["update"],
 		u.Name,
+		u.Email,
+		u.Cell,
 		u.MTime,
 		u.UUID)
 

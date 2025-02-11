@@ -19,7 +19,7 @@ var (
 	_user = shared.User{
 		UUID:  "uuid",
 		Name:  "username",
-		Email: func(s string) *string { return &s }("example@example.com"),
+		Email: func(s shared.Email) *shared.Email { return &s }("example@example.com"),
 		MTime: rightaboutnow,
 		CTime: rightaboutnow,
 	}
@@ -81,7 +81,6 @@ func TestGetAllUsers(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				nil,
 				mockSqls(),
-				&senderMock{},
 				l,
 				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).GetAllUsers(mockContext(cid))
@@ -165,7 +164,6 @@ func TestGetUser(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				nil,
 				mockSqls(),
-				&senderMock{},
 				l,
 				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).GetUser(mockContext(shared.CID("TestGetUser-"+name)), "1")
@@ -180,6 +178,8 @@ func TestAddUser(t *testing.T) {
 
 	l := testLogger(t, log.Fields{"app": "user_test.go", "test": "TestAddUser"})
 
+	addr := shared.Email("addr")
+
 	tcs := map[string]struct {
 		mockDB getMockDB
 		user   *shared.User
@@ -191,8 +191,16 @@ func TestAddUser(t *testing.T) {
 				mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 1))
 				return db
 			},
-			user:   &shared.User{Name: "username"},
+			user: &shared.User{
+				Name:  "username",
+				Email: &addr,
+			},
 			result: mockUUIDGen(),
+		},
+		"undeliverable": {
+			mockDB: func(db *sql.DB, _ sqlmock.Sqlmock, _ error) *sql.DB { return db },
+			user:   &shared.User{Name: "username"},
+			err:    shared.Undeliverable,
 		},
 		"primary_key_fails": {
 			mockDB: func(db *sql.DB, mock sqlmock.Sqlmock, err error) *sql.DB {
@@ -205,7 +213,10 @@ func TestAddUser(t *testing.T) {
 
 				return db
 			},
-			user:   &shared.User{Name: "username"},
+			user: &shared.User{
+				Name:  "username",
+				Email: &addr,
+			},
 			err:    fmt.Errorf("recursion error"),
 			result: mockUUIDGen(),
 		},
@@ -220,7 +231,10 @@ func TestAddUser(t *testing.T) {
 
 				return db
 			},
-			user:   &shared.User{Name: "username"},
+			user: &shared.User{
+				Name:  "username",
+				Email: &addr,
+			},
 			result: mockUUIDGen(),
 		},
 		"username_fails": {
@@ -232,7 +246,10 @@ func TestAddUser(t *testing.T) {
 				})
 				return db
 			},
-			user:   &shared.User{Name: "username"},
+			user: &shared.User{
+				Name:  "username",
+				Email: &addr,
+			},
 			err:    shared.UserExistsError,
 			result: mockUUIDGen(),
 		},
@@ -241,7 +258,10 @@ func TestAddUser(t *testing.T) {
 				mock.ExpectExec(".*").WillReturnError(fmt.Errorf("some error"))
 				return db
 			},
-			user:   &shared.User{Name: "username"},
+			user: &shared.User{
+				Name:  "username",
+				Email: &addr,
+			},
 			err:    fmt.Errorf("some error"),
 			result: mockUUIDGen(),
 		},
@@ -250,7 +270,10 @@ func TestAddUser(t *testing.T) {
 				mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
 				return db
 			},
-			user:   &shared.User{Name: "username"},
+			user: &shared.User{
+				Name:  "username",
+				Email: &addr,
+			},
 			err:    shared.UserNotAddedError,
 			result: mockUUIDGen(),
 		},
@@ -263,7 +286,6 @@ func TestAddUser(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				mockUUIDGen,
 				mockSqls(),
-				&senderMock{},
 				l,
 				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).AddUser(mockContext(shared.CID("TestAddUser-"+name)), tc.user)
@@ -313,7 +335,6 @@ func TestUpdateUser(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				nil,
 				mockSqls(),
-				&senderMock{},
 				l,
 				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).UpdateUser(mockContext(shared.CID("TestUpdateUser-"+name)), tc.user))
@@ -358,7 +379,6 @@ func TestDeleteUser(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				nil,
 				mockSqls(),
-				&senderMock{},
 				l,
 				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).DeleteUser(mockContext(shared.CID("TestDeleteUser-"+name)), "1"))
@@ -406,7 +426,6 @@ func TestCreateContact(t *testing.T) {
 				tc.mockDB(sqlmock.New()),
 				mockUUIDGen,
 				mockSqls(),
-				&senderMock{},
 				l,
 				testmetrics.MustCurryWith(prometheus.Labels{"db": "test db"}),
 			}).CreateContact(mockContext(shared.CID("TestCreateContact-"+name)), &tc.user, tc.contact)
