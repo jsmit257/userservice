@@ -3,6 +3,7 @@ package router
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 
@@ -22,7 +23,7 @@ func (us *UserService) PatchContact(w http.ResponseWriter, r *http.Request) {
 		sc(http.StatusBadRequest).send(ctx, w, err)
 	} else if err = json.Unmarshal(body, contact); err != nil {
 		sc(http.StatusBadRequest).send(ctx, w, err)
-		_, _ = w.Write([]byte(fmt.Sprintf("couldn't unmarshal: '%s'", body)))
+		_, _ = w.Write([]byte(fmt.Sprintf("couldn't unmarshal: '%s'", html.EscapeString(string(body)))))
 	} else if err = us.Contacter.UpdateContact(ctx, userid, contact); err != nil {
 		sc(http.StatusInternalServerError).send(ctx, w, err, err.Error())
 	} else {

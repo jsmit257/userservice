@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"strconv"
 	"time"
@@ -149,7 +150,7 @@ func (sc sc) send(ctx context.Context, w http.ResponseWriter, err error, message
 
 	w.WriteHeader(int(sc))
 	for _, m := range messages {
-		_, _ = w.Write([]byte(m))
+		_, _ = w.Write([]byte(html.EscapeString(m)))
 	}
 }
 

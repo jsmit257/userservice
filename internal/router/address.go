@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 
@@ -66,7 +67,7 @@ func (us *UserService) PostAddress(w http.ResponseWriter, r *http.Request) {
 		sc(http.StatusInternalServerError).send(ctx, w, fmt.Errorf("addressid_nil"))
 	} else {
 		sc(http.StatusOK).success(ctx, w)
-		_, _ = w.Write([]byte(id))
+		_, _ = w.Write([]byte(html.EscapeString(string(id))))
 	}
 }
 
@@ -81,7 +82,7 @@ func (us *UserService) PatchAddress(w http.ResponseWriter, r *http.Request) {
 		sc(http.StatusBadRequest).send(ctx, w, err)
 	} else if err = json.Unmarshal(body, &address); err != nil {
 		sc(http.StatusBadRequest).send(ctx, w, err)
-		_, _ = w.Write([]byte(fmt.Sprintf("couldn't unmarshal: '%s'", body)))
+		_, _ = w.Write([]byte(fmt.Sprintf("couldn't unmarshal: '%s'", html.EscapeString(string(body)))))
 	} else if err = us.Addresser.UpdateAddress(ctx, &address); err != nil {
 		sc(http.StatusInternalServerError).send(ctx, w, err)
 		_, _ = w.Write([]byte(err.Error()))

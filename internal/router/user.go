@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 
@@ -57,7 +58,7 @@ func (us *UserService) PostUser(w http.ResponseWriter, r *http.Request) {
 		sc(http.StatusInternalServerError).send(ctx, w, fmt.Errorf("userid_nil"))
 	} else {
 		sc(http.StatusCreated).success(ctx, w)
-		_, _ = w.Write([]byte(id))
+		_, _ = w.Write([]byte(html.EscapeString(string(id))))
 	}
 }
 
