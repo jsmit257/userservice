@@ -14,18 +14,19 @@ var (
 
 func init() {
 	DataMetrics = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name:      "database",
-		Help:      "The packages, methods and possible errors when accessing data",
-		Namespace: "cffc",
-		Subsystem: "userservice",
+		Namespace:   "cffc",
+		Subsystem:   "userservice",
+		Name:        "database",
+		Help:        "The packages, methods and possible errors when accessing data",
+		ConstLabels: prometheus.Labels{},
 	}, []string{"db", "pkg", "function", "status"})
 
 	ServiceMetrics = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace:   "cffc",
+		Subsystem:   "userservice",
 		Name:        "router",
 		Help:        "Service requests tracked by ???",
 		ConstLabels: prometheus.Labels{},
-		Namespace:   "cffc",
-		Subsystem:   "userservice",
 	}, []string{"url", "proto", "method", "sc"})
 }
 

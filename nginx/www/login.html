@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <title>login</title>
+
+  <meta charset="UTF-8">
+  <meta name="description" content="authentication">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+
+  <!-- replace favicon error with something slightly less irritating -->
+  <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon">
+
+  <script src="https://code.jquery.com/jquery-3.7.1.slim.min.js"></script>
+  <script src="js/login.js" defer></script>
+
+  <link rel="preload" href="css/login.css" as="style" onload="this.onloqd=null;this.rel='stylesheet'">
+  <noscript>
+    <link rel="stylesheet" href="css/login.css">
+  </noscript>
+</head>
+
+<body>
+  <div class="login">
+    <div class="state"></div>
+
+    <label class="field username">
+      <input id="username" tabindex="0" placeholder="8-character minimum">
+      <button class="create" type="button" tabindex="0" title="create user">✚</button>
+      <button class="forgot" type="button" tabindex="0" title="forgot password">?</button>
+    </label>
+
+    <label class="field password">
+      <input id="password" type="password" tabindex="0" placeholder="min 8-chars, 1 digit, 1 symbol">
+      <button class="ok" type="button" tabindex="0" title="login">✔</button>
+      <button class="change" type="button" tabindex="0" title="change password">⤦</button>
+    </label>
+
+    <p class="psa forgot add">
+      email address and cell are used for password recovery; cell must
+      be an sms-enabled number in order to recieve text messages; only
+      one of the fields are required, but both are recommended
+    </p>
+    <p class="psa forgot">
+      NOTE: the field used to send reset credentials must match the
+      corresponding field on record for this account
+    </p>
+
+    <label class="field cell forgot add mfa">
+      <input id="cell" type="tel" tabindex="0" placeholder="(###.###.####)">
+    </label>
+
+    <label class="field email forgot add mfa">
+      <input id="email" type="email" tabindex="0" placeholder="(user@domainname.tld)">
+    </label>
+    <button class="forgot cancel" type="button" tabindex="0" title="cancel">cancel</button>
+    <button class="forgot reset" type="button" tabindex="0" title="reset password">reset</button>
+
+    <label class="field newpass edit add matchable">
+      <input id="newpass" type="password" tabindex="0" placeholder="min 8-chars, 1 digit, 1 symbol">
+    </label>
+
+    <label class="field verify edit add matchable">
+      <input id="verify" type="password" tabindex="0" placeholder="min 8-chars, 1 digit, 1 symbol">
+      <button class="save" type="button" tabindex="0" title="save">✔</button>
+      <button class="cancel" type="button" tabindex="0" title="cancel">✘</button>
+    </label>
+  </div>
+
+  <div class="message">
+    <div class="window">
+      <div class="exception">
+        <div class="status"></div>
+        <div class="method"></div>
+        <div class="url"></div>
+        <div class="message"></div>
+      </div>
+
+      <button class="ok" type="button" tabindex="0">dismiss</button>
+    </div>
+  </div>
+</body>
+
+</html>

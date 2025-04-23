@@ -113,6 +113,8 @@ services:
       context: ./nginx
       dockerfile: ./Dockerfile
     ports: [ 8585:80 ]
+    volumes:
+      - ./nginx/www:/www
     environment:
       US_HTTP_HOST: *http-host
       US_HTTP_PORT: *http-port

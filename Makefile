@@ -50,10 +50,13 @@ deploy: # no hard dependency on `system-test` for mow
 	docker tag jsmit257/us-db-mysql-mig:latest jsmit257/us-db-mysql-mig:lkg
 	docker tag jsmit257/us-srv-mysql:latest jsmit257/us-srv-mysql:lkg
 	docker tag jsmit257/us-web-test:latest jsmit257/us-web-test:lkg
+	git tag -f stable
 
 .PHONY: push
-push: # just docker, not git
+push:
 	docker push jsmit257/us-db-mysql-test:lkg
 	docker push jsmit257/us-db-mysql-mig:lkg
 	docker push jsmit257/us-srv-mysql:lkg
 	docker push jsmit257/us-web-test:lkg
+	git push origin stable:stable
+

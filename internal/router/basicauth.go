@@ -59,6 +59,8 @@ func (us UserService) PostLogin(w http.ResponseWriter, r *http.Request) {
 		sc(code).send(ctx, w, fmt.Errorf("failed redis login"))
 	} else {
 		http.SetCookie(w, cookie)
+		w.Header().Set("Location", "/") // FIXME: get location from `us`
+		// sc(http.StatusMovedPermanently).success(ctx, w, nil)
 		sc(http.StatusOK).success(ctx, w, mustJSON(user))
 	}
 }
@@ -79,6 +81,8 @@ func (us UserService) PatchLogin(w http.ResponseWriter, r *http.Request) {
 		sc(code).send(ctx, w, fmt.Errorf("failed redis login"), "failed redis login")
 	} else {
 		http.SetCookie(w, cookie)
+		w.Header().Set("Location", "/") // FIXME: get location from `us`
+		// sc(http.StatusMovedPermanently).success(ctx, w, nil)
 		sc(http.StatusNoContent).success(ctx, w)
 	}
 }
