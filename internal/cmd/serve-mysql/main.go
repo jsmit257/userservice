@@ -40,7 +40,7 @@ func main() {
 	logrus.SetFormatter(&logrus.JSONFormatter{})
 	log := logrus.WithField("app", APP_NAME)
 
-	log.Info("loaded config and configured logger")
+	log.WithField("cfg", cfg.JSON()).Info("loaded config and configured logger")
 
 	defer cleanup(log, cfg, err)
 

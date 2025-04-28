@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	twilioApi "github.com/twilio/twilio-go/rest/api/v2010"
 
 	"github.com/jsmit257/userservice/internal/config"
 	"github.com/jsmit257/userservice/internal/metrics"
@@ -33,7 +34,12 @@ type (
 		found   string
 	}
 
-	mockSender struct {
+	mockMailSender struct {
+		msgs int
+		err  error
+	}
+
+	mockSmsSender struct {
 		msgs int
 		err  error
 	}
@@ -117,11 +123,17 @@ func mockContext() context.Context {
 	)
 }
 
-func (ms *mockSender) Send(*gomail.Message) error {
+func (ms *mockMailSender) Send(*gomail.Message) error {
 	ms.msgs++
 	return ms.err
 }
-func (ms *mockSender) Close() {}
+func (ms *mockMailSender) Close() {}
+
+func (ss *mockSmsSender) Send(*twilioApi.CreateMessageParams) error {
+	ss.msgs++
+	return ss.err
+}
+func (ss *mockSmsSender) Close() {}
 
 func (er errReader) Read([]byte) (int, error) {
 	return 0, fmt.Errorf("%s", er)

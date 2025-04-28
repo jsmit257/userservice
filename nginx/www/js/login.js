@@ -7,7 +7,9 @@ $(_ => {
 
   let login = '.login'
   let userfield = `${login}>.username`
+  let username = `${userfield}>#username`
   let passfield = `${login}>.password`
+  let password = `${passfield}>#password`
   let mfa = `${login}>.mfa>input`
   let cell = `${mfa}#cell`
   let email = `${mfa}#email`
@@ -15,14 +17,32 @@ $(_ => {
   let verify = `${login}>.verify`
 
   // let chkuser = u => u.length > 7
-  let chkuser = u => u.replace(/[^0-9A-z_-]/, '') === u
+  let chkuser = u => u.replace(/[^0-9A-Za-z_-]/, '') === u
     && u.length > 7
   let chkpass = p => p.length > 7
     // && p.replace(/[^,<>./?!@#$%^&*\(\)\{\}-_+=\[\]\|\\]/, '').length > 0
     // && p.replace(/[^0-9]/, '').length > 0
-    && p.replace(/[^A-z]/, '').length > 0
+    && p.replace(/[^A-Za-z]/, '').length > 0
   let chkcell = c => c.replace(/[^0-9]/, '').length == 10
-  let chkmail = m => /[^@]{2,}@[^.]{2,}\.[A-z]{2,3}/.test(m)
+  let chkmail = m => /[^@]{2,}@[^.]{2,}\.[A-Za-z]{2,3}/.test(m)
+  let keyignore = Object.fromEntries([
+    // it lacks the efficiency of golang maps, but it's potentially 
+    // cleaner than list.indexOf(...)
+    'ArrowDown',
+    'ArrowLeft',
+    'ArrowRight',
+    'ArrowUp',
+    'Alt',
+    'Control',
+    'End',
+    'Escape',
+    'Home',
+    'Meta',
+    'PageDown',
+    'PageUp',
+    'Shift',
+    'Tab',
+  ].map(v => [v, 1]))
 
   $(document.body)
     // form maintenance
@@ -50,37 +70,57 @@ $(_ => {
           // $(e.currentTarget).trigger(...search)
           $(e.currentTarget).trigger(search)
           break
-        default:
-          console.log('invalid arg', search)
+        case undefined: break
+        default: $(document.body).trigger('error-message', {
+          message: `unknown query param: '${search}'`,
+          level: 'console',
+        })
       }
     })
     .on('logout', `>${login}`, (e, val) => {
       e.stopPropagation()
 
-      fetch('logout', { method: 'POST' }).then(async resp => {
-        if (resp.status === 202) throw {
-          url: 'logout',
-          method: 'POST',
-          status: resp.status,
-          message: await resp.text(),
-        }
-        $(e.currentTarget).trigger('clear')
-      }).catch(ex => {
-        $(document.body).trigger('error-message', ex)
-      }).finally(_ => {
-        console.log('finally logout, now what?')
-      })
+      fetch('logout', { method: 'POST' })
+        .then(async resp => {
+          let result = {
+            url: 'logout',
+            method: 'POST',
+            status: resp.status,
+          }
+          if (resp.status === 202) throw {
+            ...result,
+            message: await resp.text(),
+          }
+
+          $(e.currentTarget).trigger('clear')
+          return {
+            ...result,
+            level: 'info',
+            timeout: 5,
+            redirect: _ => $(`body>${username}`)
+              .val(localStorage.username)
+              .trigger('change'),
+          }
+        })
+        .then(done => $(document.body).trigger('error-message', done))
+        .catch(ex => $(document.body).trigger('error-message', ex))
     })
     .on('forgot', `>${login}`, (e, val) => {
       e.stopPropagation()
 
-      console.log('valid arg', 'forgot', val)
+      $(`body>${login}`).addClass('forgetting')
     })
     .on('reset', `>${login}`, (e, val) => {
       e.stopPropagation()
 
-      console.log('valid arg', 'reset', val)
-      $(`body>${passfield}>.change`).trigger('click')
+      // might still have to enter username yourself if it's not on
+      // localStorage, but we're not sending it; chances are `GET /auth`
+      // hasn't returned yet so we can't use the button click
+      $(`body>${login}`)
+        .addClass('editing')
+        .trigger('password-mgmt')
+        .find(`.password, .username>.forgot`)
+        .hide()
     })
     .on('clear', `>${login}`, e => {
       e.stopPropagation()
@@ -104,18 +144,39 @@ $(_ => {
     })
 
     // username events
-    .on('change', `>${userfield}>#username`, e => {
+    .on('change', `>${username}`, e => {
       e.stopPropagation()
 
       $(e.currentTarget).trigger('test')
     })
-    .on('test', `>${userfield}>#username`, e => {
+    .on('keyup', `>${username}`, e => {
       e.stopPropagation()
 
-      let $user = $(e.currentTarget)
-      let $field = $user.parent()
-      let val = $user.val()
-      if (!$field.withClass(chkuser(val), 'complete').hasClass('complete')) {
+      if (keyignore[e.key]) {
+        return
+        // } else {
+        //   console.log(e.key)
+      }
+
+      let input = e.currentTarget
+
+      clearTimeout(input.timer ?? -1)
+
+      // // XXX: hold off on this
+      // $(`body>${login}>.state`).text(input.value)
+
+      input.timer = setTimeout(_ => $(input).trigger('test'), 100)
+    })
+    .on('test', `>${username}`, e => {
+      e.stopPropagation()
+
+      let input = e.currentTarget
+
+      clearTimeout(input.timer ?? -1)
+      delete input.timer
+
+      let val = input.value
+      if (!$(input.parentNode).withClass(chkuser(val), 'complete').hasClass('complete')) {
         $(`body>${login}`).removeAttr('id')
       } else {
         fetch(`/auth/${val}`).then(async resp => {
@@ -124,17 +185,13 @@ $(_ => {
             method: 'GET',
             status: resp.status,
             message: await resp.text(),
-            lvl: 'console',
+            level: 'console',
           }
           localStorage.username = val
           return await resp.json()
-        }).then(json => $(`body>${login}`)
-          .attr('id', json.id)
-          .find('>.password>#password')
-          .focus()
+        }).then(json => $(`body>${login}`).attr('id', json.id)
         ).catch(ex => {
           $(`body>${login}`).removeAttr('id')
-          // don't refocus the username
           $(document.body).trigger('error-message', ex)
         })
       }
@@ -152,11 +209,11 @@ $(_ => {
     .on('click', `>[id]${userfield}>.forgot`, e => {
       e.stopPropagation()
 
-      $(`body>${login}`).addClass('forgetting')
+      $(`body>${login}`).trigger('forgot')
     })
 
     // password events
-    .on('keyup', `>${passfield}>#password`, e => {
+    .on('keyup', `>${password}`, e => {
       e.stopPropagation()
 
       let $pass = $(e.currentTarget)
@@ -167,28 +224,24 @@ $(_ => {
 
       let body = {
         id: $(`body>${login}`).attr('id'),
-        password: $(`body>${passfield}>#password`).val(),
+        password: $(`body>${password}`).val(),
       }
 
       fetch('auth', { method: 'POST', body: JSON.stringify(body) })
         .then(async resp => {
-          // // FIXME: any self-respecting login returns a location
-          // if (resp.status !== 301) throw {
           if (resp.status !== 200) throw {
             url: resp.url,
             method: 'POST',
             status: resp.status,
             message: await resp.text(),
           }
-          // console.log('headers', resp.headers)
-          return resp.headers['Location']
+          return resp.url
         })
-        // FIXME: null location should be an exception
-        .then(location => document.location = location ?? '/')
-        .catch(ex => {
-          $(`body>${password}`).focus()
-          $(document.body).trigger('error-message', ex)
-        })
+        .then(redirect => document.location = redirect)
+        .catch(ex => $(document.body).trigger('error-message', {
+          ...ex,
+          redirect: _ => $(`body>${password}`).focus()
+        }))
     })
     .on('click', `>[id]${passfield}>.change`, e => {
       e.stopPropagation()
@@ -203,26 +256,35 @@ $(_ => {
       e.stopPropagation()
 
       let body = {
-        id: $(`body>${login}>`).attr('id'),
+        id: $(`body>${login}`).attr('id'),
         email: $(`body>${email}`).val() || null,
         cell: $(`body>${cell}`).val() || null,
+        redirect: `${document.location.pathname}?reset`,
       }
 
       fetch('auth', { method: 'DELETE', body: JSON.stringify(body) })
         .then(async resp => {
-          if (resp.status !== 200) throw {
+          let result = {
             url: resp.url,
-            method: 'POST',
+            method: 'DELETE',
             status: resp.status,
+            redirect: _ => $(`body>${login}>.forgot.cancel`).trigger('click'),
+          }
+
+          if (resp.status !== 204) throw {
+            ...result,
+            level: 'error',
             message: await resp.text(),
           }
-          // what do we do here? static text explaining to check email/sms
-          // for a link to reset? something else?
-          $(`body>${login}>.forgot.cancel`).trigger('click')
+
+          return {
+            ...result,
+            level: 'info',
+            message: 'password has been reset; follow the link sent to your email/text to complete the reset',
+          }
         })
-        .catch(ex => {
-          $(document.body).trigger('error-message', ex)
-        })
+        .then(success => $(document.body).trigger('error-message', success))
+        .catch(ex => $(document.body).trigger('error-message', ex))
     })
     .on('click', `>[id]${login}>.forgot.cancel`, e => {
       e.stopPropagation()
@@ -270,7 +332,7 @@ $(_ => {
       ) {
         $(`body>${login}`).addClass('mismatch')
       } else if ($(`body>${login}`).hasClass('editing')
-        && $(`>${passfield}>#password`).val() === val
+        && $(`>${password}`).val() === val
       ) {
         $(document.body).trigger('error-message', {
           message: 'new and old passwords are the same'
@@ -286,7 +348,7 @@ $(_ => {
       e.stopPropagation()
 
       let body = {
-        username: $(`body>${userfield}>#username`).val(),
+        username: $(`body>${username}`).val(),
         email: $(`body>${email}`).val() || null,
         cell: $(`body>${cell}`).val() || null,
       }
@@ -299,10 +361,11 @@ $(_ => {
             status: resp.status,
             message: await resp.text(),
           }
+          localStorage.username = body.username
           return await resp.text()
         })
         .then(id => $(`body>${login}`).attr('id', id).removeClass('adding'))
-        .then(_ => setTimeout($(e.currentTarget).click(), 150))
+        .then(_ => setTimeout(_ => $(e.currentTarget).click(), 500))
         .catch(ex => $(document.body).trigger('error-message', ex))
     })
 
@@ -312,30 +375,42 @@ $(_ => {
 
       let id = $(`body>${login}`).attr('id')
       let body = {
-        old: { id, password: $(`body>${passfield}>#password`).val() },
-        new: { id, password: $(`body>${verify}>#verify`).val() },
+        old: $(`body>${password}`).val(),
+        new: $(`body>${verify}>#verify`).val(),
       }
 
-      fetch(`/auth/${$dt.attr('id')}`, {
-        method: 'PATCH',
-        body: JSON.stringify(body),
-      }).then(async resp => {
-        // // FIXME: PATCH also needs to return redirect, like POST above
-        // if (resp.status !== 301) throw {
-        if (resp.status !== 204) throw {
-          url: resp.url,
-          method: 'POST',
-          status: resp.status,
-          message: await resp.text(),
-        }
-        // console.log('headers', resp.headers)
-        return resp.headers['Location']
-      }).then(location =>
-        // FIXME: null location should be an exception
-        document.location = location ?? '/'
-      ).catch(ex => {
-        $(document.body).trigger('error-message', ex)
-      })
+      if (body.old == body.new) { // the service would do this anyway
+        return $(document.body).trigger('error-message', {
+          url: `/auth/${id}`,
+          method: 'PATCH',
+          status: 400,
+          message: 'passwords match'
+        })
+      }
+
+      fetch(`/auth/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+        .then(async resp => {
+          let result = {
+            url: resp.url,
+            method: 'PATCH',
+            status: resp.status,
+          }
+
+          if (resp.status !== 204) throw {
+            ...result,
+            message: await resp.text(),
+          }
+
+          return {
+            ...result,
+            message: 'password changed',
+            level: 'info',
+            timeout: 5,
+            redirect: _ => document.location = resp.headers.get('Location'),
+          }
+        })
+        .then(result => $(document.body).trigger('error-message', result))
+        .catch(ex => $(document.body).trigger('error-message', ex))
     })
 
     // grand-unified cancel for editing and adding
@@ -349,9 +424,14 @@ $(_ => {
     .on('error-message', (e, ex) => {
       e.stopPropagation()
 
-      if (ex.lvl === 'console')
-        console.error('error-message', ex)
-      else $(e.currentTarget)
+      let log = ex.level === 'info' ? console.log : console.error
+      log('error-message', ex)
+
+      if (ex.level === 'console') {
+        return
+      }
+
+      $(e.currentTarget)
         .addClass('messaging')
         .find('>.message')
         .trigger('send', ex)
@@ -359,26 +439,37 @@ $(_ => {
     .on('send', '>.message', (e, ex) => {
       e.stopPropagation()
 
-      let $msg = $(e.currentTarget).addClass(ex.lvl ?? 'error')
+      let {
+        level,
+        timeout,
+        redirect,
+        ...fields
+      } = ex
+
+      let $msg = $(e.currentTarget).addClass(level ?? 'error')
 
       let $exception = $msg.find('>.window>.exception')
-      Object.entries(ex).forEach(([k, v]) => {
+      Object.entries(fields).forEach(([k, v]) => {
         $exception.find(`>.${k}`).text(v)
       })
 
+      e.currentTarget.dismissed = redirect ?? (_ => _)
       e.currentTarget.timer = setTimeout(_ => $msg
         .find('>.window>.ok')
         .click(),
-        (ex.to ?? 30) * 1000)
+        (timeout ?? 30) * 1000)
     })
-    .on('click', '>.message>.window>.ok', (e, ex) => {
+    .on('click', '>.message>.window>.ok', e => {
       e.stopPropagation()
 
-      clearTimeout($(document.body)
+      let message = $(document.body)
         .removeClass('messaging')
         .find('>.message')
         .get(0)
-        .timer)
+
+      clearTimeout(message.timer)
+
+      message.dismissed()
     })
 
     // start with a clean slate

@@ -14,6 +14,7 @@ var (
 	BadUserOrPassError  CustomError = fmt.Errorf("bad username or password")
 	MaxFailedLoginError CustomError = fmt.Errorf("too many failed login attempts")
 	MissingAuthToken    CustomError = fmt.Errorf("missing auth token")
+	TransactionError    CustomError = fmt.Errorf("transaction error")
 
 	RedisTokenFail = fmt.Errorf("failed redis login token")
 

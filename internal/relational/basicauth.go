@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jsmit257/userservice/shared/v1"
 )
 
@@ -104,22 +105,23 @@ func (db *Conn) Login(ctx context.Context, login *shared.BasicAuth) (*shared.Bas
 	return result, done(err, log)
 }
 
-func (db *Conn) ResetPassword(ctx context.Context, id *shared.UUID) error {
+func (db *Conn) ResetPassword(ctx context.Context, id *shared.UUID) (shared.Password, error) {
 	done, log := db.logging("ResetPassword", id, ctx.Value(shared.CTXKey("cid")).(shared.CID))
 
 	auth, err := db.GetAuthByAttrs(ctx, id, nil)
 	if err != nil {
-		return done(err, log)
+		return "", done(err, log)
 	}
 
 	now := time.Now().UTC()
+	seed := shared.Password(uuid.NewString())
 
 	auth.Salt = generateSalt()
-	auth.Pass = hash(shared.Password(Obfuscate(string(auth.UUID))), auth.Salt)
+	auth.Pass = hash(seed, auth.Salt)
 	auth.LoginSuccess = &now
 	auth.FailureCount = 0
 
-	return done(db.updateBasicAuth(ctx, auth), log)
+	return seed, done(db.updateBasicAuth(ctx, auth), log)
 }
 
 func (db *Conn) updateBasicAuth(ctx context.Context, login *shared.BasicAuth) error {

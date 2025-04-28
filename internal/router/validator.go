@@ -2,6 +2,7 @@ package router
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jsmit257/userservice/shared/v1"
@@ -11,8 +12,10 @@ func (us UserService) PostLogout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	token, err := r.Cookie("us-authn")
-	if err != nil { // FIXME? do some kind of redirect?
-		sc(http.StatusForbidden).send(ctx, w, shared.MissingAuthToken, shared.MissingAuthToken.Error())
+	if err != nil {
+		w.Header().Set("Location", us.logon)
+		sc(http.StatusMovedPermanently).success(ctx, w)
+
 		return
 	}
 
@@ -28,13 +31,17 @@ func (us UserService) GetValid(w http.ResponseWriter, r *http.Request) {
 
 	token, err := r.Cookie("us-authn")
 	if err != nil {
-		sc(http.StatusForbidden).send(ctx, w, shared.MissingAuthToken)
+		w.Header().Set("Location", us.logon)
+		sc(http.StatusTemporaryRedirect).send(ctx, w, shared.MissingAuthToken)
 		return
 	}
 
 	cookie, code := us.Validator.Valid(ctx, token.Value)
 
 	http.SetCookie(w, cookie)
+	if code == http.StatusTemporaryRedirect {
+		w.Header().Set("Location", us.logon)
+	}
 
 	sc(code).success(ctx, w)
 }
@@ -48,32 +55,33 @@ func (us UserService) GetLoginOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	loc, cookie, code := us.Validator.LoginOTP(ctx, pad, r.RemoteAddr)
+	loc, code := us.Validator.LoginOTP(ctx, pad)
 
-	http.SetCookie(w, cookie)
 	w.Header().Set("Location", loc)
-	w.Header().Set("Authn-Pad", pad)
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "authn-pad",
+		Value:    pad,
+		Path:     "/",
+		Expires:  time.Now().UTC().Add(2 * time.Minute),
+		MaxAge:   int(2 * 60),
+		HttpOnly: true,
+	})
 
 	sc(code).success(ctx, w)
 }
 
-func (us UserService) PostValidateOTP(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+// func (us UserService) PostCompleteOTP(w http.ResponseWriter, r *http.Request) {
+// 	ctx := r.Context()
 
-	token, err := r.Cookie("us-authn")
-	if err != nil {
-		sc(http.StatusForbidden).send(ctx, w, shared.MissingAuthToken)
-		return
-	}
+// 	pad := r.Header.Get("Authz-Pad")
+// 	if pad == "" {
+// 		sc(http.StatusForbidden).send(ctx, w, shared.MissingAuthToken)
+// 		return
+// 	}
 
-	pad := r.Header.Get("Authn-Pad")
-	if pad == "" {
-		sc(http.StatusForbidden).send(ctx, w, shared.MissingAuthToken)
-		return
-	}
+// 	uid, code := us.Validator.CompleteOTP(ctx, pad)
 
-	uid, code := us.Validator.ValidateOTP(ctx, token.Value, pad)
-
-	sc(code).success(ctx, w)
-	_, _ = w.Write([]byte(uid))
-}
+// 	sc(code).success(ctx, w)
+// 	_, _ = w.Write([]byte(uid))
+// }

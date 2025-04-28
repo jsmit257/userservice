@@ -1,6 +1,8 @@
 package config
 
 import (
+	"encoding/json"
+
 	"github.com/kelseyhightower/envconfig"
 )
 
@@ -20,15 +22,24 @@ type Config struct {
 	MaildUser string `envconfig:"MAILD_USER" default:"svc" json:"maild_user,omitempty"`
 	MaildPass string `envconfig:"MAILD_PASS" default:"snakeoil" json:"-"`
 
+	SmsAccountID string `envconfig:"SMS_ACCT_ID" json:"sms_acct_id,omitempty"`
+	SmsAuthToken string `envconfig:"SMS_AUTH_TOKEN" json:"sms_auth_token,omitempty"`
+	SmsSender    string `envconfig:"SMS_SENDER" json:"sms_sender,omitempty"`
+
 	AuthnTimeout int64  `envconfig:"AUTHN_TIMEOUT" default:"15" json:"authn_timeout"`
 	MaxLogins    int    `envconfig:"MAX_LOGINS" default:"5" json:"max_logins"`
 	CookieName   string `envconfig:"AUTHN_COOKIE" default:"us-authn" json:"authn_cookie"`
+
+	LogonURL   string `envconfig:"LOGIN_URL" default:"/login.html" json:"logon_url"`
+	ResetURL   string `envconfig:"RESET_URL" default:"/login.html?reset" json:"reset_url"`
+	SuccessURL string `envconfig:"REDIR_SUCCESS" default:"/index.html" json:"success_url"`
 
 	ServerHost string `envconfig:"HTTP_HOST" default:"0.0.0.0" json:"server_host"`
 	ServerPort uint16 `envconfig:"HTTP_PORT" default:"3000" json:"server_port"`
 
 	LogLevel      string `envconfig:"LOG_LEVEL" default:"INFO" json:"min_log_level"`
-	EmailTestMode bool   `envconfig:"EMAIL_TEST_MODE" default:"0" json:"test_mode"`
+	EmailTestMode bool   `envconfig:"EMAIL_TEST_MODE" default:"false" json:"email_test_mode"`
+	SmsTestMode   bool   `envconfig:"SMS_TEST_MODE" default:"false" json:"sms_test_mode"`
 }
 
 func NewConfig() *Config {
@@ -38,4 +49,9 @@ func NewConfig() *Config {
 		panic(err)
 	}
 	return result
+}
+
+func (c *Config) JSON() string {
+	result, _ := json.Marshal(c)
+	return string(result)
 }

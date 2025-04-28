@@ -45,7 +45,6 @@ func NewSender(cfg *config.Config, log *logrus.Entry) (Sender, error) {
 	}
 
 	go func() {
-
 		for msg := range result {
 			l := log.WithFields(logrus.Fields{
 				"rx":      msg.GetHeader("To"),
@@ -58,7 +57,6 @@ func NewSender(cfg *config.Config, log *logrus.Entry) (Sender, error) {
 				l.Info("sent message")
 			}
 		}
-
 	}()
 
 	log.Info("mail relay daemon started")

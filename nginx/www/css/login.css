@@ -1,5 +1,6 @@
 :root {
   --fg-color: aliceblue;
+
   /* opacity settings */
   --enabled: 1;
   --disabled: .3;
@@ -30,9 +31,69 @@ input {
 button {
   background-color: #0001;
   border-color: darkseagreen;
-  color: var(--fg-color);
+  color: var(
+  --fg-color);
   font-size: larger;
   font-weight: bolder;
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
 
   &:focus-visible {
     outline: none;
@@ -46,10 +107,10 @@ html {
 body {
   color: var(--fg-color);
   line-height: 200%;
+  padding-left: 30%;
+  padding-top: 20%;
 
   &>.login {
-    padding-left: 30%;
-    padding-top: 20%;
 
     & button {
       border-color: darkseagreen;
@@ -321,26 +382,17 @@ body {
   }
 
   &>.message {
-    align-content: center;
-    align-items: center;
-    bottom: 0;
     display: none;
-    flex-wrap: wrap;
-    justify-content: center;
-    left: 0;
-    position: fixed;
-    right: 0;
-    top: 0;
-    z-index: 5;
 
     &>.window {
       background-color: grey;
       border-color: snow;
+      border-radius: 1em;
       border-style: outset;
       border-width: 8px;
-      border-radius: 1em;
+      float: left;
       padding: .66em;
-      width: 33%;
+      width: 33em;
 
       &>.exception {
         height: 10em;
@@ -363,8 +415,8 @@ body {
         }
 
         &>div {
-          font-size: large;
           float: left;
+          font-size: large;
           text-align: center;
 
           &.method {
@@ -376,7 +428,11 @@ body {
           }
 
           &.url {
+            overflow-x: clip;
             text-align: left;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            width: calc(100% - 13em);
 
             &::before {
               content: 'url: ';
@@ -385,11 +441,11 @@ body {
           }
 
           &.message {
+            line-height: 1.5;
             overflow-x: hidden;
             overflow-y: auto;
             text-align: justify;
             width: calc(100% - 8rem);
-            line-height: 1.5;
           }
         }
       }
@@ -404,18 +460,14 @@ body {
       }
     }
 
-    &.error {
-      &>.window>.exception::before {
-        background-color: red;
-        content: '!';
-      }
+    &.error>.window>.exception::before {
+      background-color: red;
+      content: '!';
     }
 
-    &.info {
-      &>.window>.exception::before {
-        background-color: blue;
-        content: 'i';
-      }
+    &.info>.window>.exception::before {
+      background-color: blue;
+      content: 'i';
     }
   }
 
@@ -426,7 +478,6 @@ body {
 
     &>.message {
       display: block;
-      display: flex;
     }
   }
 }

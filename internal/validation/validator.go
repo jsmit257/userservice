@@ -29,8 +29,8 @@ type (
 		Logout(context.Context, string) (*http.Cookie, int)
 		Valid(context.Context, string) (*http.Cookie, int)
 		OTP(context.Context, shared.UUID, string, string) (string, int)
-		LoginOTP(context.Context, string, string) (string, *http.Cookie, int)
-		ValidateOTP(context.Context, string, string) (shared.UUID, int)
+		LoginOTP(context.Context, string) (string, int)
+		CompleteOTP(context.Context, string) (shared.UUID, int)
 	}
 
 	authn interface {
@@ -137,7 +137,7 @@ func (v *core) Logout(ctx context.Context, token string) (*http.Cookie, int) {
 	t := v.tracker(ctx, "Logout")
 
 	key := "token:" + token
-	if _, code := v.Valid(ctx, token); code != http.StatusFound {
+	if _, code := v.Valid(ctx, token); code != http.StatusNoContent {
 		return nil, t.sc(code).err(NotAuthorized).done("logout request isn't valid").sc()
 	} else if uid, err := v.authn.HGet(ctx, key, userid).Result(); err != nil && err != redis.Nil {
 		return nil, t.sc(http.StatusInternalServerError).
@@ -175,7 +175,7 @@ func (v *core) Valid(ctx context.Context, token string) (*http.Cookie, int) {
 			done("checking exists").
 			sc()
 	} else if count == 0 {
-		return v.logoutCookie, t.sc(http.StatusForbidden).
+		return v.logoutCookie, t.sc(http.StatusTemporaryRedirect).
 			err(fmt.Errorf("token doesn't exist")).
 			done("token doesn't exist").
 			sc()
@@ -185,21 +185,28 @@ func (v *core) Valid(ctx context.Context, token string) (*http.Cookie, int) {
 			done("setting new expiry").
 			sc()
 	} else if !found {
-		return v.logoutCookie, t.sc(http.StatusInternalServerError).
+		return v.logoutCookie, t.sc(http.StatusTemporaryRedirect).
 			err(fmt.Errorf("token doesn't exist")).
 			done("no token was updated?").
 			sc()
 	}
 
-	return cookie, t.sc(http.StatusFound).ok().sc()
+	return cookie, t.sc(http.StatusNoContent).ok().sc()
 }
 
 func (v *core) OTP(ctx context.Context, uid shared.UUID, rmt, three02 string) (string, int) {
 	t := v.tracker(ctx, "OTP")
 
 	pad := uuid.NewString()
+	logins := "logins:" + string(uid)
 	key := "pad:" + pad
-	if err := v.authn.HSet(ctx, key, map[string]interface{}{
+
+	if code := v.checkCount(ctx, logins); code != http.StatusOK {
+		return "", t.sc(code).
+			err(fmt.Errorf("too many logins")).
+			done("check count fails").
+			sc()
+	} else if err := v.authn.HSet(ctx, key, map[string]interface{}{
 		userid:   string(uid),
 		remote:   rmt,
 		redirect: three02,
@@ -230,103 +237,47 @@ func (v *core) OTP(ctx context.Context, uid shared.UUID, rmt, three02 string) (s
 	return pad, t.sc(http.StatusOK).ok().sc()
 }
 
-func (v *core) LoginOTP(ctx context.Context, pad, rmt string) (location string, cookie *http.Cookie, code int) {
+func (v *core) LoginOTP(ctx context.Context, pad string) (location string, code int) {
 	t := v.tracker(ctx, "LoginOTP")
 	three02 := "/"
 
 	key := "pad:" + pad
 	if result, err := v.authn.HGetAll(ctx, key).Result(); err != nil {
-		return three02, v.logoutCookie, t.sc(http.StatusForbidden).err(err).done(err.Error()).sc()
+		return three02, t.sc(http.StatusInternalServerError).err(err).done(err.Error()).sc()
 	} else if uid, ok := result[userid]; !ok {
-		return three02, v.logoutCookie, t.sc(http.StatusForbidden).err(NotAuthorized).done("missing uid").sc()
+		return three02, t.sc(http.StatusInternalServerError).err(NotAuthorized).done("missing uid").sc()
 	} else if uid == "" {
-		return three02, v.logoutCookie, t.sc(http.StatusForbidden).err(NotAuthorized).done("empty uid").sc()
-	} else if code := v.clearLogins(ctx, shared.UUID(result[userid])); code != http.StatusGone {
-		return three02, v.logoutCookie, t.sc(code).done("clearing logins").sc()
-	} else if cookie, code = v.Login(ctx, shared.UUID(result[userid]), rmt); code != http.StatusOK {
-		return three02, v.logoutCookie, t.sc(code).done("logging in").sc()
-	} else if count, err := v.authn.HSet(ctx, "token:"+cookie.Value, "pad", pad).Result(); err != nil {
-		return three02, v.logoutCookie, t.sc(http.StatusInternalServerError).
-			err(err).
-			done("setting pad attribute").
-			sc()
-	} else if count != 1 {
-		return three02, v.logoutCookie, t.sc(http.StatusInternalServerError).
-			err(fmt.Errorf("wrong number of fields updated: %d", count)).
-			done("setting pad attribute").
-			sc()
+		return three02, t.sc(http.StatusBadRequest).err(NotAuthorized).done("empty uid").sc()
 	} else if temp, ok := result[redirect]; !ok {
-		t.warn("redirect is missing")
+		return three02, t.sc(http.StatusInternalServerError).done("can't find redirect").sc()
 	} else if temp == "" {
-		t.warn("redirect is empty") // for now this is somebody else's problem
+		return three02, t.sc(http.StatusBadRequest).done("redirect is empty").sc()
 	} else {
 		three02 = temp
 	}
 
-	return three02, cookie, t.sc(http.StatusFound).ok().sc()
+	return three02, t.sc(http.StatusFound).ok().sc()
 }
 
-func (v *core) ValidateOTP(ctx context.Context, token, pad string) (shared.UUID, int) {
-	var result shared.UUID
+func (v *core) CompleteOTP(ctx context.Context, pad string) (shared.UUID, int) {
+	t := v.tracker(ctx, "CompleteOTP")
 
-	t := v.tracker(ctx, "ValidateOTP")
-
-	exp := time.Duration(v.loginCookie("").MaxAge) * time.Second // hard way to get expiration
-	key := "token:" + token
-	if login, err := v.authn.HGetAll(ctx, key).Result(); err != nil {
-		return result, t.sc(http.StatusInternalServerError).
-			err(err).
-			done("getting login").
-			sc()
-	} else if uid, ok := login[userid]; !ok {
-		return result, t.sc(http.StatusForbidden).
-			err(fmt.Errorf("token is missing userid")).
-			done("invalid token").
-			sc()
+	result, err := v.authn.HGetAll(ctx, "pad:"+pad).Result()
+	if err != nil {
+		return "", t.sc(http.StatusInternalServerError).err(err).done(err.Error()).sc()
+	} else if uid, ok := result[userid]; !ok {
+		return "", t.sc(http.StatusInternalServerError).err(NotAuthorized).done("missing uid").sc()
 	} else if uid == "" {
-		return result, t.sc(http.StatusForbidden).
-			err(fmt.Errorf("token userid is empty")).
-			done("invalid token").
-			sc()
-	} else if p, ok := login[otp]; !ok {
-		return result, t.sc(http.StatusForbidden).
-			err(fmt.Errorf("not a OTP login")).
-			done("invalid request").
-			sc()
-	} else if p != pad {
-		return result, t.sc(http.StatusForbidden).
-			err(fmt.Errorf("pads don't match")).
-			done("invalid request").
-			sc()
-	} else if count, err := v.authn.HDel(ctx, key, otp).Result(); err != nil {
-		return result, t.sc(http.StatusInternalServerError).
-			err(err).
-			done("updating login").
-			sc()
-	} else if count != 1 {
-		return result, t.sc(http.StatusInternalServerError).
-			err(fmt.Errorf("wrong number of attributes removed: %d", count)).
-			done("updating login").
-			sc()
-	} else if found, err := v.authn.Expire(ctx, key, exp).Result(); err != nil {
-		return result, t.sc(http.StatusInternalServerError).
-			err(err).
-			done("setting new expiry").
-			sc()
-	} else if !found {
-		return result, t.sc(http.StatusInternalServerError).
-			err(fmt.Errorf("token doesn't exist")).
-			done("no token was updated?").
-			sc()
-	} else {
-		result = shared.UUID(uid)
+		return "", t.sc(http.StatusBadRequest).err(NotAuthorized).done("empty uid").sc()
+	} else if code := v.clearLogins(ctx, shared.UUID(result[userid])); code != http.StatusGone {
+		return "", t.sc(code).done("clearing logins").sc()
 	}
 
-	return result, http.StatusOK
+	return shared.UUID(result[userid]), http.StatusOK
 }
 
 func (v *core) clearTokens(ctx context.Context, tokens []string) ([]interface{}, error) {
-	t := v.tracker(ctx, "clearLogins")
+	t := v.tracker(ctx, "clearTokens")
 
 	var result []interface{}
 	for _, token := range tokens {
@@ -345,7 +296,7 @@ func (v *core) clearLogins(ctx context.Context, uid shared.UUID) int {
 
 	key := "logins:" + string(uid)
 	if tokens, err := v.authn.SMembers(ctx, key).Result(); err != nil && err != redis.Nil {
-		return t.sc(http.StatusForbidden).err(err).done("couldn't get userid for token").sc()
+		return t.sc(http.StatusInternalServerError).err(err).done("couldn't get userid for token").sc()
 	} else if err == redis.Nil {
 		return t.sc(http.StatusGone).err(NotAuthorized).done("user isn't logged in").sc()
 	} else if l := len(tokens); l == 0 { // redundant?

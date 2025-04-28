@@ -57,8 +57,7 @@ func (us *UserService) PostUser(w http.ResponseWriter, r *http.Request) {
 	} else if id == "" {
 		sc(http.StatusInternalServerError).send(ctx, w, fmt.Errorf("userid_nil"))
 	} else {
-		sc(http.StatusCreated).success(ctx, w)
-		_, _ = w.Write([]byte(html.EscapeString(string(id))))
+		sc(http.StatusCreated).success(ctx, w, html.EscapeString(string(id)))
 	}
 }
 

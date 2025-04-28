@@ -16,7 +16,7 @@ type (
 		GetAuthByAttrs(context.Context, *UUID, *string) (*BasicAuth, error)
 		ChangePassword(context.Context, UUID, Password, Password) error
 		Login(context.Context, *BasicAuth) (*BasicAuth, error)
-		ResetPassword(context.Context, *UUID) error
+		ResetPassword(context.Context, *UUID) (Password, error)
 	}
 
 	BasicAuther interface{}

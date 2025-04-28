@@ -2,9 +2,7 @@ package data
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -27,6 +25,7 @@ type (
 	}
 
 	query interface {
+		BeginTx(context.Context, *sql.TxOptions) (*sql.Tx, error)
 		ExecContext(context.Context, string, ...any) (sql.Result, error)
 		QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 		QueryRowContext(context.Context, string, ...any) *sql.Row
@@ -48,11 +47,11 @@ func NewUserService(db *sql.DB, sqls config.Sqls, l *logrus.Entry, m *prometheus
 	})}
 }
 
-func Obfuscate(s string) string {
-	result, _ := uuid.FromBytes([]byte(s + "abcdefghijklmnop")[:16])
-	sum := sha256.Sum256([]byte(result.String()))
-	return hex.EncodeToString(sum[:])
-}
+// func Obfuscate(s string) string {
+// 	result, _ := uuid.FromBytes([]byte(s + "abcdefghijklmnop")[:16])
+// 	sum := sha256.Sum256([]byte(result.String()))
+// 	return hex.EncodeToString(sum[:])
+// }
 
 func (db *Conn) logging(fn string, key any, cid shared.CID) (deferred, *logrus.Entry) {
 	start := time.Now()
