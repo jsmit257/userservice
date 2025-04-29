@@ -28,8 +28,8 @@ func NewSender(cfg *config.Config, log *logrus.Entry) (Sender, error) {
 	log = log.WithField("pkg", "maild")
 	result := make(sender, 10)
 
-	if cfg.EmailTestMode {
-		log.Info("mail relay daemon started with dummy mailer")
+	if cfg.SmsTestMode {
+		log.Info("sms relay daemon started with dummy sender")
 		return &testSender{log}, nil
 	}
 
@@ -50,6 +50,7 @@ func NewSender(cfg *config.Config, log *logrus.Entry) (Sender, error) {
 				l.WithField("sms-response", s).Info("sms sent")
 			}
 		}
+		log.Info("sms daemon channel closed")
 	}()
 
 	log.Info("sms relay daemon started")

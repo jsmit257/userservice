@@ -97,6 +97,7 @@ func Test_Close(t *testing.T) {
 
 func Test_testSender(t *testing.T) {
 	t.Parallel()
+
 	s, err := NewSender(&config.Config{EmailTestMode: true}, logrus.WithField("test", "Test_testSender"))
 	require.Nil(t, err)
 	err = s.Send(nil)

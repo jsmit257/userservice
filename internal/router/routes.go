@@ -23,8 +23,8 @@ import (
 
 type (
 	UserService struct {
-		mailSender maild.Sender
-		smsSender  smsd.Sender
+		MailSender maild.Sender
+		SmsSender  smsd.Sender
 		shared.Addresser
 		shared.Auther
 		shared.Contacter

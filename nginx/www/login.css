@@ -1,5 +1,6 @@
 :root {
   --fg-color: aliceblue;
+  --bg-color: #3f5454;
 
   /* opacity settings */
   --enabled: 1;
@@ -31,69 +32,9 @@ input {
 button {
   background-color: #0001;
   border-color: darkseagreen;
-  color: var(
-  --fg-color);
+  color: var(--fg-color);
   font-size: larger;
   font-weight: bolder;
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
 
   &:focus-visible {
     outline: none;
@@ -101,7 +42,7 @@ button {
 }
 
 html {
-  background-color: #3f5454;
+  background-color: var(--bg-color);
 }
 
 body {

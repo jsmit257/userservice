@@ -473,8 +473,8 @@ func Test_DeleteLogin(t *testing.T) {
 
 			us := &UserService{
 				Auther:     &tc.a,
-				mailSender: &tc.ms,
-				smsSender:  &tc.ss,
+				MailSender: &tc.ms,
+				SmsSender:  &tc.ss,
 				Userer:     &tc.u,
 				Validator:  &tc.v,
 			}

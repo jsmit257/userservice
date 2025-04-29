@@ -20,6 +20,7 @@ import (
 	"github.com/jsmit257/userservice/internal/metrics"
 	data "github.com/jsmit257/userservice/internal/relational"
 	"github.com/jsmit257/userservice/internal/router"
+	"github.com/jsmit257/userservice/internal/smsd"
 	valid "github.com/jsmit257/userservice/internal/validation"
 )
 
@@ -75,10 +76,15 @@ func main() {
 		Validator: valid.NewValidator(authn, cfg, log),
 	}
 
-	if us.Sender, err = maild.NewSender(cfg, log); err != nil {
-		panic("failed to initialize mail relay daemon")
+	if us.MailSender, err = maild.NewSender(cfg, log); err != nil {
+		log.Panicf("failed to initialize mail relay daemon: %q", err)
 	}
-	defer us.Sender.Close()
+	defer us.MailSender.Close()
+
+	if us.SmsSender, err = smsd.NewSender(cfg, log); err != nil {
+		log.Panicf("failed to initialize sms relay daemon: %q", err)
+	}
+	defer us.SmsSender.Close()
 
 	srv := router.NewInstance(us, cfg, log)
 

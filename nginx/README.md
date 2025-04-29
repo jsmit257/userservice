@@ -1,9 +1,9 @@
 ### Test web server
 
-Use this to do some simple HTTP calls.  A service is provided in [docker-compose](../docker-compose.yml) called `us-web-test` that will build the `nginx` image and load a small test harness index.html. It needs an API host, but it doesn't explicitly require one - it just gloms on to whatever you point it at. Sample usage would be something like:
+Use this to do some simple HTTP calls.  A service is provided in [docker-compose](../docker-compose.yml) called `us-web` that will build the `nginx` image and load a small test harness index.html. It needs an API host, but it doesn't explicitly require one - it just gloms on to whatever you point it at. Sample usage would be something like:
 
 ```bash
-docker-compose [--build [--remove-orphans]] [-d] us-web-test
+docker-compose [--build [--remove-orphans]] [-d] us-web
 ```
 
 Since any API host exposes the same interface, it doesn't matter which database you use. The current defaults assume a a host named `servicetester` on port `3000`. These values should really come from the command line.

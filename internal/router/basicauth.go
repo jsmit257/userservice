@@ -66,7 +66,7 @@ func authzPad(us UserService, w http.ResponseWriter, r *http.Request, id shared.
 	if otpID, code := us.Validator.CompleteOTP(ctx, otp.Value); code != http.StatusOK {
 		return old, code
 	} else if otpID != id {
-		return old, http.StatusBadRequest // actually, the request that created an empty value
+		return old, http.StatusBadRequest // enter the wrong username?
 	}
 
 	pwd, err := us.Auther.ResetPassword(ctx, &id)
@@ -134,9 +134,9 @@ func (us UserService) DeleteLogin(w http.ResponseWriter, r *http.Request) {
 		sc(http.StatusBadRequest).send(ctx, w, fmt.Errorf("cell number doesn't match records"))
 	} else if pad, code := us.OTP(ctx, user.UUID, r.RemoteAddr, location["redirect"]); pad == "" {
 		sc(code).send(ctx, w, fmt.Errorf("couldn't generate token"), "couldn't generate token")
-	} else if err = us.mailSender.Send(user.PasswordResetEmail(r.Host, pad)); err != nil {
+	} else if err = us.MailSender.Send(user.PasswordResetEmail(r.Host, pad)); err != nil {
 		sc(http.StatusInternalServerError).send(ctx, w, err, err.Error())
-	} else if err := us.smsSender.Send(user.PasswordResetSMS(r.Host, pad)); err != nil {
+	} else if err := us.SmsSender.Send(user.PasswordResetSMS(r.Host, pad)); err != nil {
 		sc(http.StatusInternalServerError).send(ctx, w, err)
 	} else {
 		sc(http.StatusNoContent).success(ctx, w)

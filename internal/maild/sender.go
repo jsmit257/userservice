@@ -51,12 +51,15 @@ func NewSender(cfg *config.Config, log *logrus.Entry) (Sender, error) {
 				"subject": msg.GetHeader("Subject"),
 			})
 
+			msg.SetHeader("From", cfg.MaildSender)
+
 			if err := d.DialAndSend(msg); err != nil {
 				l.WithError(err).Error("failed to send message")
 			} else {
 				l.Info("sent message")
 			}
 		}
+		log.Info("mail daemon channel closed")
 	}()
 
 	log.Info("mail relay daemon started")

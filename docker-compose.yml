@@ -104,19 +104,26 @@ services:
       US_REDIS_PORT: *redis-port
       US_EMAIL_TEST_MODE: true
 
-  us-web-test:
+  us-web:
     # test harness mostly auth functions that relate to redis endpoints
     # (login/logout/valid); should add create to make it more comprehensive
-    image: jsmit257/us-web-test:latest
+    image: jsmit257/us-web:latest
     restart: always
     build:
       context: ./nginx
       dockerfile: ./Dockerfile
     ports: [ 8585:80 ]
     volumes:
+      # Dockerfile copies www/login.* into the image, so the next line is 
+      # for development only
       - ./nginx/www:/www
+
+      # login.html loads custom login.{js,css} from these directories, empty 
+      # defaults are created by Dockerfile to prevent 404s, if you choose 
+      # not to customize; adjust the host paths to fit your deployment, omit
+      # any volumes you don't wish to customize
+      - ./nginx/custom:/www/js
+      - ./nginx/custom:/www/css
     environment:
       US_HTTP_HOST: *http-host
       US_HTTP_PORT: *http-port
-      US_REDIS_HOST: *redis-host
-      US_REDIS_PORT: *redis-port

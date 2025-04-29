@@ -86,7 +86,6 @@ func (u *User) PasswordResetEmail(host, token string) *gomail.Message {
 	var emailTmpl string = `<a "href=https://%s/otp/%s">Change Password</a>`
 
 	m := gomail.NewMessage()
-	m.SetHeader("From", "no-reply@cffc.io")
 	m.SetHeader("To", string(*u.Email))
 	m.SetBody("text/html", fmt.Sprintf(
 		emailTmpl,

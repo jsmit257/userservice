@@ -5,3 +5,5 @@ log.json
 !/bin/env/template
 /bin/env
 
+/nginx/custom
+

@@ -17,10 +17,11 @@ type Config struct {
 	RedisHost string `envconfig:"REDIS_HOST" default:"redis" json:"redis_host"`
 	RedisPort int16  `envconfig:"REDIS_PORT" default:"6379" json:"redis_port"`
 
-	MaildHost string `envconfig:"MAILD_HOST" default:"mail.google.com" json:"maild_host,omitempty"`
-	MaildPort uint16 `envconfig:"MAILD_PORT" default:"587" json:"maild_port,omitempty"`
-	MaildUser string `envconfig:"MAILD_USER" default:"svc" json:"maild_user,omitempty"`
-	MaildPass string `envconfig:"MAILD_PASS" default:"snakeoil" json:"-"`
+	MaildHost   string `envconfig:"MAILD_HOST" default:"mail.google.com" json:"maild_host,omitempty"`
+	MaildPort   uint16 `envconfig:"MAILD_PORT" default:"587" json:"maild_port,omitempty"`
+	MaildUser   string `envconfig:"MAILD_USER" default:"svc" json:"maild_user,omitempty"`
+	MaildPass   string `envconfig:"MAILD_PASS" default:"snakeoil" json:"-"`
+	MaildSender string `envconfig:"MAILD_SENDER" default:"no-reply@cffc.io" json:"maild_sender"`
 
 	SmsAccountID string `envconfig:"SMS_ACCT_ID" json:"sms_acct_id,omitempty"`
 	SmsAuthToken string `envconfig:"SMS_AUTH_TOKEN" json:"sms_auth_token,omitempty"`
