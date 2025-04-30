@@ -118,7 +118,7 @@ services:
       # for development only
       - ./nginx/www:/www
 
-      # login.html loads custom login.{js,css} from these directories, empty 
+      # login.html loads custom.{js,css} from these directories, empty 
       # defaults are created by Dockerfile to prevent 404s, if you choose 
       # not to customize; adjust the host paths to fit your deployment, omit
       # any volumes you don't wish to customize

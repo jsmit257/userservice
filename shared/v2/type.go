@@ -11,15 +11,15 @@ import (
 
 // from types.go
 type (
-	UUID     sharedv1.UUID
-	Password sharedv1.Password
-	Email    sharedv1.Email
 	Cell     sharedv1.Cell
 	CID      sharedv1.CID
 	CTXKey   sharedv1.CTXKey
+	Email    sharedv1.Email
+	Password sharedv1.Password
+	UUID     sharedv1.UUID
 
-	BasicAuth sharedv1.BasicAuth
-	User      sharedv1.User
 	Address   sharedv1.Address
+	BasicAuth sharedv1.BasicAuth
 	Contact   sharedv1.Contact
+	User      sharedv1.User
 )

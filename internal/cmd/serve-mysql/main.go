@@ -16,11 +16,11 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/jsmit257/userservice/internal/config"
-	"github.com/jsmit257/userservice/internal/maild"
+	"github.com/jsmit257/userservice/internal/messaging/maild"
+	"github.com/jsmit257/userservice/internal/messaging/smsd"
 	"github.com/jsmit257/userservice/internal/metrics"
 	data "github.com/jsmit257/userservice/internal/relational"
 	"github.com/jsmit257/userservice/internal/router"
-	"github.com/jsmit257/userservice/internal/smsd"
 	valid "github.com/jsmit257/userservice/internal/validation"
 )
 

@@ -67,13 +67,12 @@ func NewSender(cfg *config.Config, log *logrus.Entry) (Sender, error) {
 	return result, nil
 }
 
-func (s sender) Send(m *gomail.Message) error {
-	var err error
+func (s sender) Send(m *gomail.Message) (err error) {
 	defer func() {
 		if maybe, ok := recover().(error); ok {
 			err = maybe
-		} else {
-			err = fmt.Errorf("non-error in panic: %#v", err)
+		} else if maybe != nil {
+			err = fmt.Errorf("non-error in panic: %w", err)
 		}
 	}()
 
@@ -81,7 +80,7 @@ func (s sender) Send(m *gomail.Message) error {
 		s <- m
 	}
 
-	return err
+	return
 }
 
 func (s sender) Close() {

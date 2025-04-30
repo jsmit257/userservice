@@ -70,18 +70,3 @@ func (us UserService) GetLoginOTP(w http.ResponseWriter, r *http.Request) {
 
 	sc(code).success(ctx, w)
 }
-
-// func (us UserService) PostCompleteOTP(w http.ResponseWriter, r *http.Request) {
-// 	ctx := r.Context()
-
-// 	pad := r.Header.Get("Authz-Pad")
-// 	if pad == "" {
-// 		sc(http.StatusForbidden).send(ctx, w, shared.MissingAuthToken)
-// 		return
-// 	}
-
-// 	uid, code := us.Validator.CompleteOTP(ctx, pad)
-
-// 	sc(code).success(ctx, w)
-// 	_, _ = w.Write([]byte(uid))
-// }

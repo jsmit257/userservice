@@ -214,68 +214,6 @@ func Test_GetLoginOTP(t *testing.T) {
 	}
 }
 
-// func Test_PostCompleteOTP(t *testing.T) {
-// 	t.Parallel()
-
-// 	tcs := map[string]struct {
-// 		token string
-// 		pad   string
-// 		v     *mockValidator
-// 		sc    int
-// 	}{
-// 		"pass_through": {
-// 			token: "foobar",
-// 			pad:   "pad",
-// 			v: &mockValidator{
-// 				validateotp:   "uid",
-// 				validateotpsc: http.StatusOK,
-// 			},
-// 			sc: http.StatusOK,
-// 		},
-// 		"missing_pad": {
-// 			token: "foobar",
-// 			sc:    http.StatusForbidden,
-// 		},
-// 		"missing_token": {
-// 			sc: http.StatusForbidden,
-// 		},
-// 	}
-
-// 	for name, tc := range tcs {
-// 		name, tc := name, tc
-
-// 		t.Run(name, func(t *testing.T) {
-// 			t.Parallel()
-
-// 			us := &UserService{Validator: tc.v}
-// 			w := httptest.NewRecorder()
-// 			r, _ := http.NewRequestWithContext(
-// 				context.WithValue(
-// 					mockContext(),
-// 					chi.RouteCtxKey,
-// 					chi.NewRouteContext()),
-// 				http.MethodPost,
-// 				"tc.url",
-// 				nil,
-// 			)
-// 			if tc.token != "" {
-// 				r.AddCookie(&http.Cookie{
-// 					Name:    "us-authn",
-// 					Value:   tc.token,
-// 					Expires: time.Now().UTC().Add(time.Hour),
-// 				})
-// 			}
-// 			if tc.pad != "" {
-// 				r.Header.Set("Authz-Pad", tc.pad)
-// 			}
-
-// 			us.PostCompleteOTP(w, r)
-
-// 			require.Equal(t, tc.sc, w.Code)
-// 		})
-// 	}
-// }
-
 func (mv *mockValidator) Login(context.Context, shared.UUID, string) (*http.Cookie, int) {
 	return mv.login, mv.loginsc
 }

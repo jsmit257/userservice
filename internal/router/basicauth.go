@@ -46,7 +46,7 @@ func (us UserService) PostLogin(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func authzPad(us UserService, w http.ResponseWriter, r *http.Request, id shared.UUID, old shared.Password) (shared.Password, int) {
+func authnPad(us UserService, w http.ResponseWriter, r *http.Request, id shared.UUID, old shared.Password) (shared.Password, int) {
 	ctx := r.Context()
 
 	otp, err := r.Cookie("authn-pad")
@@ -97,7 +97,7 @@ func (us UserService) PatchLogin(w http.ResponseWriter, r *http.Request) {
 		sc(http.StatusBadRequest).send(ctx, w, err, "couldn't read body")
 	} else if err = json.Unmarshal(body, &pair); err != nil {
 		sc(http.StatusBadRequest).send(ctx, w, err, "couldn't unmarshal form")
-	} else if pair.Old, code = authzPad(us, w, r, id, pair.Old); code != http.StatusOK {
+	} else if pair.Old, code = authnPad(us, w, r, id, pair.Old); code != http.StatusOK {
 		sc(code).send(ctx, w, err)
 	} else if err := us.Auther.ChangePassword(ctx, id, pair.Old, pair.New); err != nil {
 		sc(http.StatusInternalServerError).send(ctx, w, err, err.Error())

@@ -25,7 +25,7 @@ type (
 )
 
 func NewSender(cfg *config.Config, log *logrus.Entry) (Sender, error) {
-	log = log.WithField("pkg", "maild")
+	log = log.WithField("pkg", "smsd")
 	result := make(sender, 10)
 
 	if cfg.SmsTestMode {
@@ -42,12 +42,16 @@ func NewSender(cfg *config.Config, log *logrus.Entry) (Sender, error) {
 		for msg := range result {
 			l := log.WithField("rx", msg.To)
 
-			resp, err := client.Api.CreateMessage(msg.SetFrom(cfg.SmsSender))
+			resp, err := client.Api.CreateMessage(msg.
+				SetFrom(cfg.SmsSender).
+				SetTrafficType("").                       // XXX: A2P, Transactional, ???
+				SetContentRetention("").                  // XXX: Limited?
+				SetValidityPeriod(int(cfg.AuthnTimeout))) // XXX: does twilio use minutes?
 			if err != nil {
 				l.WithError(err).Error("sending SMS message")
 			} else {
 				s, _ := json.Marshal(resp)
-				l.WithField("sms-response", s).Info("sms sent")
+				l.WithField("send-response", s).Info("sms sent")
 			}
 		}
 		log.Info("sms daemon channel closed")
@@ -58,13 +62,12 @@ func NewSender(cfg *config.Config, log *logrus.Entry) (Sender, error) {
 	return result, nil
 }
 
-func (s sender) Send(m *twilioApi.CreateMessageParams) error {
-	var err error
+func (s sender) Send(m *twilioApi.CreateMessageParams) (err error) {
 	defer func() {
 		if maybe, ok := recover().(error); ok {
 			err = maybe
-		} else {
-			err = fmt.Errorf("non-error in panic: %#v", err)
+		} else if maybe != nil {
+			err = fmt.Errorf("non-error in panic: %w", err)
 		}
 	}()
 
@@ -72,7 +75,7 @@ func (s sender) Send(m *twilioApi.CreateMessageParams) error {
 		s <- m
 	}
 
-	return err
+	return
 }
 
 func (s sender) Close() {
@@ -85,5 +88,5 @@ func (s *testSender) Send(msg *twilioApi.CreateMessageParams) error {
 }
 
 func (s *testSender) Close() {
-	s.l.Info("closing maild")
+	s.l.Info("closing smsd")
 }

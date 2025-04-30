@@ -206,17 +206,14 @@ func Test_PatchLogin(t *testing.T) {
 			sc:     http.StatusNoContent,
 		},
 		"param_missing": {
-			// a:  &mockAuther{},
 			sc: http.StatusBadRequest,
 		},
 		"read_fails": {
-			// a:   &mockAuther{},
 			id:  "user_id",
 			old: &pass,
 			sc:  http.StatusBadRequest,
 		},
 		"unmarshal_fails": {
-			// a:   &mockAuther{getErr: fmt.Errorf("some error")},
 			id:  "uuid",
 			old: &pass,
 			sc:  http.StatusBadRequest,

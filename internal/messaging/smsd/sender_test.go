@@ -1,41 +1,50 @@
-package maild
+package smsd
 
 import (
 	"os"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/go-gomail/gomail"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	twilioApi "github.com/twilio/twilio-go/rest/api/v2010"
 
 	"github.com/jsmit257/userservice/internal/config"
 )
 
 func Test_NewSender(t *testing.T) {
-	t.Skip() // stand up a smtp image to handle this? or just save it for system tests?
 	t.Parallel()
 
 	cfg := &config.Config{
-		MaildHost: os.Getenv("MAILD_RELAY_HOST"),
-		MaildPort: func(s string) uint16 {
-			if i, err := strconv.Atoi(s); err == nil {
-				return uint16(i)
-			}
-			return 0
-		}(os.Getenv("MAILD_RELAY_PORT")),
-		MaildUser: os.Getenv("MAILD_RELAY_USER"),
-		MaildPass: os.Getenv("MAILD_RELAY_PASS"),
+		SmsAccountID: os.Getenv("SMS_ACCT_ID"),
+		SmsAuthToken: os.Getenv("SMS_AUTH_TOKEN"),
 	}
 
+	// really just tests Close() on the goroutine, unless we want to
+	// burn a send for a test
 	sender, err := NewSender(cfg, logrus.WithField("app", "maild-test"))
-	require.Equal(t, nil, err)
+	require.Nil(t, err)
 
-	// sender.Send(&gomail.Message{})
+	// require.Nil(t, sender.Send((&twilioApi.CreateMessageParams{}).
+	// 	SetTo("sample").
+	// 	SetBody("sample body")))
 
 	sender.Close()
+
+	require.NotNil(t, sender.Send((&twilioApi.CreateMessageParams{}).
+		SetTo("sample").
+		SetBody("sample body")))
+}
+
+func Test_testSender(t *testing.T) {
+	t.Parallel()
+
+	s, err := NewSender(&config.Config{SmsTestMode: true}, logrus.WithField("test", "Test_testSender"))
+	require.Nil(t, err)
+	err = s.Send(nil)
+	require.Nil(t, err)
+	s.Close()
 }
 
 func Test_Send(t *testing.T) {
@@ -43,7 +52,7 @@ func Test_Send(t *testing.T) {
 
 	var err error
 	s := make(sender)
-	m := gomail.NewMessage()
+	m := &twilioApi.CreateMessageParams{}
 	wg := sync.WaitGroup{}
 
 	wg.Add(1)
@@ -77,7 +86,8 @@ func Test_Send(t *testing.T) {
 		err = s.Send(m)
 	}()
 	wg.Wait()
-	require.Equal(t, nil, err, "sending_closed_channel") // ???
+	require.NotNil(t, err, "sending closed channel")
+	require.Equal(t, "send on closed channel", err.Error(), "sending closed channel") // ???
 }
 
 func Test_Close(t *testing.T) {
@@ -90,17 +100,7 @@ func Test_Close(t *testing.T) {
 		require.NotNil(t, recover())
 	}()
 
-	s <- gomail.NewMessage()
+	s <- &twilioApi.CreateMessageParams{}
 	require.Fail(t, "should've paniced")
 
-}
-
-func Test_testSender(t *testing.T) {
-	t.Parallel()
-
-	s, err := NewSender(&config.Config{EmailTestMode: true}, logrus.WithField("test", "Test_testSender"))
-	require.Nil(t, err)
-	err = s.Send(nil)
-	require.Nil(t, err)
-	s.Close()
 }

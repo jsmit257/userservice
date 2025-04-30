@@ -28,7 +28,7 @@ system-test: unit down mysql-test serve-mysql
 	sleep 2s
 	./bin/test-integration
 
-.PHONY: web-test
+.PHONY: web
 web:
 	docker-compose up --build --remove-orphans -d us-web
 

@@ -14,9 +14,9 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/jsmit257/userservice/internal/config"
-	"github.com/jsmit257/userservice/internal/maild"
+	"github.com/jsmit257/userservice/internal/messaging/maild"
+	"github.com/jsmit257/userservice/internal/messaging/smsd"
 	"github.com/jsmit257/userservice/internal/metrics"
-	"github.com/jsmit257/userservice/internal/smsd"
 	valid "github.com/jsmit257/userservice/internal/validation"
 	"github.com/jsmit257/userservice/shared/v1"
 )
@@ -69,7 +69,6 @@ func NewInstance(us *UserService, cfg *config.Config, log *logrus.Entry) *http.S
 	r.Post("/logout", us.PostLogout)
 	r.Get("/valid", us.GetValid)
 	r.Get("/otp/{pad}", us.GetLoginOTP)
-	// r.Get("/validateotp", us.PostCompleteOTP)
 
 	r.Get("/hc", hc)
 

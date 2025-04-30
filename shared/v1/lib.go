@@ -35,38 +35,6 @@ func CheckValid(host string, port uint16, cookie *http.Cookie) (*http.Cookie, ht
 	return cookie, resp.Header, resp.StatusCode
 }
 
-// func CheckOTP(host string, port uint16, cookie *http.Cookie, pad string) (UUID, int) {
-// 	var result UUID
-
-// 	if cookie == nil {
-// 		return result, http.StatusBadRequest
-// 	}
-
-// 	url := fmt.Sprintf("http://%s:%d/validateotp/%s", host, port, cookie.Value)
-// 	req, err := http.NewRequest(http.MethodPost, url, nil)
-// 	if err != nil {
-// 		return result, http.StatusInternalServerError
-// 	}
-
-// 	resp, err := http.DefaultClient.Do(req)
-// 	if err != nil {
-// 		return result, http.StatusInternalServerError
-// 	}
-// 	defer resp.Body.Close()
-
-// 	if resp.StatusCode != http.StatusOK {
-// 		return result, http.StatusForbidden
-// 	} else if body, err := io.ReadAll(resp.Body); err != nil {
-// 		return result, http.StatusInternalServerError
-// 	} else if len(body) == 0 {
-// 		return result, http.StatusForbidden
-// 	} else {
-// 		result = UUID(body)
-// 	}
-
-// 	return result, resp.StatusCode
-// }
-
 func (u *User) Undeliverable() bool {
 	if u.Email != nil && len(*u.Email) != 0 {
 		return false
@@ -107,9 +75,6 @@ func (u *User) PasswordResetSMS(host, token string) *twilioApi.CreateMessagePara
 	}
 
 	return (&twilioApi.CreateMessageParams{}).
-		SetValidityPeriod(0).
-		SetTrafficType("").
-		SetContentRetention("").
 		SetTo(string(*u.Cell)).
 		SetBody(fmt.Sprintf(
 			`<a "href=https://%s/otp/%s">Change Password</a>`,
