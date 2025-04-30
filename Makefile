@@ -28,10 +28,9 @@ system-test: unit down mysql-test serve-mysql
 	sleep 2s
 	./bin/test-integration
 
-.PHONY: web-test
-web-test:
-	docker-compose down -t5 us-web-test
-	docker-compose up --build --remove-orphans -d us-web-test
+.PHONY: web
+web:
+	docker-compose up --build --remove-orphans -d us-web
 
 .PHONY: vet
 vet:
@@ -45,11 +44,11 @@ deploy: # no hard dependency on `system-test` for mow
 	docker-compose build mysql-test
 	docker-compose build mysql-migration
 	docker-compose build serve-mysql
-	docker-compose build us-web-test
+	docker-compose build us-web
 	docker tag jsmit257/us-db-mysql-test:latest jsmit257/us-db-mysql-test:lkg
 	docker tag jsmit257/us-db-mysql-mig:latest jsmit257/us-db-mysql-mig:lkg
 	docker tag jsmit257/us-srv-mysql:latest jsmit257/us-srv-mysql:lkg
-	docker tag jsmit257/us-web-test:latest jsmit257/us-web-test:lkg
+	docker tag jsmit257/us-web:latest jsmit257/us-web:lkg
 	git tag -f stable
 
 .PHONY: push
@@ -57,6 +56,6 @@ push:
 	docker push jsmit257/us-db-mysql-test:lkg
 	docker push jsmit257/us-db-mysql-mig:lkg
 	docker push jsmit257/us-srv-mysql:lkg
-	docker push jsmit257/us-web-test:lkg
+	docker push jsmit257/us-web:lkg
 	git push origin stable:stable
 

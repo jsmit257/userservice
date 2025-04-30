@@ -16,7 +16,8 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/jsmit257/userservice/internal/config"
-	"github.com/jsmit257/userservice/internal/maild"
+	"github.com/jsmit257/userservice/internal/messaging/maild"
+	"github.com/jsmit257/userservice/internal/messaging/smsd"
 	"github.com/jsmit257/userservice/internal/metrics"
 	data "github.com/jsmit257/userservice/internal/relational"
 	"github.com/jsmit257/userservice/internal/router"
@@ -40,7 +41,7 @@ func main() {
 	logrus.SetFormatter(&logrus.JSONFormatter{})
 	log := logrus.WithField("app", APP_NAME)
 
-	log.Info("loaded config and configured logger")
+	log.WithField("cfg", cfg.JSON()).Info("loaded config and configured logger")
 
 	defer cleanup(log, cfg, err)
 
@@ -75,10 +76,15 @@ func main() {
 		Validator: valid.NewValidator(authn, cfg, log),
 	}
 
-	if us.Sender, err = maild.NewSender(cfg, log); err != nil {
-		panic("failed to initialize mail relay daemon")
+	if us.MailSender, err = maild.NewSender(cfg, log); err != nil {
+		log.Panicf("failed to initialize mail relay daemon: %q", err)
 	}
-	defer us.Sender.Close()
+	defer us.MailSender.Close()
+
+	if us.SmsSender, err = smsd.NewSender(cfg, log); err != nil {
+		log.Panicf("failed to initialize sms relay daemon: %q", err)
+	}
+	defer us.SmsSender.Close()
 
 	srv := router.NewInstance(us, cfg, log)
 

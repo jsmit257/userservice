@@ -5,13 +5,13 @@ import (
 )
 
 type (
-	UUID        string
-	Password    string
-	Email       string
 	Cell        string
 	CID         string
 	CTXKey      string
 	CustomError error
+	Email       string
+	Password    string
+	UUID        string
 
 	Address struct {
 		UUID    UUID      `json:"id" mysql:"uuid"`

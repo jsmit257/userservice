@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"html"
 	"net/http"
 	"strconv"
 	"time"
@@ -15,7 +14,8 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/jsmit257/userservice/internal/config"
-	"github.com/jsmit257/userservice/internal/maild"
+	"github.com/jsmit257/userservice/internal/messaging/maild"
+	"github.com/jsmit257/userservice/internal/messaging/smsd"
 	"github.com/jsmit257/userservice/internal/metrics"
 	valid "github.com/jsmit257/userservice/internal/validation"
 	"github.com/jsmit257/userservice/shared/v1"
@@ -23,18 +23,26 @@ import (
 
 type (
 	UserService struct {
-		maild.Sender
+		MailSender maild.Sender
+		SmsSender  smsd.Sender
 		shared.Addresser
 		shared.Auther
 		shared.Contacter
 		shared.Userer
 		valid.Validator
+		success,
+		logon,
+		redirect string
 	}
 
 	sc int
 )
 
 func NewInstance(us *UserService, cfg *config.Config, log *logrus.Entry) *http.Server {
+	us.success = cfg.SuccessURL
+	us.logon = cfg.LogonURL
+	us.redirect = cfg.ResetURL
+
 	r := chi.NewRouter()
 
 	r.Use(wrapContext(log))
@@ -61,7 +69,6 @@ func NewInstance(us *UserService, cfg *config.Config, log *logrus.Entry) *http.S
 	r.Post("/logout", us.PostLogout)
 	r.Get("/valid", us.GetValid)
 	r.Get("/otp/{pad}", us.GetLoginOTP)
-	r.Get("/validateotp", us.PostValidateOTP)
 
 	r.Get("/hc", hc)
 
@@ -150,7 +157,7 @@ func (sc sc) send(ctx context.Context, w http.ResponseWriter, err error, message
 
 	w.WriteHeader(int(sc))
 	for _, m := range messages {
-		_, _ = w.Write([]byte(html.EscapeString(m)))
+		_, _ = w.Write([]byte(m))
 	}
 }
 

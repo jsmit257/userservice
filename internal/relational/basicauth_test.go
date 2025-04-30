@@ -409,7 +409,7 @@ func Test_ResetPassword(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			err := (&Conn{
+			_, err := (&Conn{
 				tc.db(sqlmock.New()),
 				nil,
 				mockSqls(),

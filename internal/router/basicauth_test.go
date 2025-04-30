@@ -26,7 +26,8 @@ type mockAuther struct {
 
 	change error
 
-	reset error
+	reset    shared.Password
+	resetErr error
 }
 
 func Test_GetAuth(t *testing.T) {
@@ -100,42 +101,18 @@ func Test_PostLogin(t *testing.T) {
 	uid := shared.UUID(uuid.NewString()[:5])
 
 	tcs := map[string]struct {
-		a        *mockAuther
-		u        *mockUserer
-		v        *mockValidator
-		pad      string
-		cookie   *http.Cookie
-		login    shared.BasicAuth
-		response *shared.User
-		sc       int
+		a     *mockAuther
+		v     *mockValidator
+		login shared.BasicAuth
+		sc    int
 	}{
 		"happy_path": {
 			a: &mockAuther{login: &shared.BasicAuth{UUID: uid}},
-			u: &mockUserer{user: &shared.User{UUID: uid}},
-			v: &mockValidator{
-				login:         &testCookie,
-				loginsc:       http.StatusOK,
-				validateotp:   uid,
-				validateotpsc: http.StatusOK,
-			},
-			pad: "pad",
-			cookie: &http.Cookie{
-				Name:  "us-authn",
-				Value: "token",
-			},
-			login:    shared.BasicAuth{UUID: uid},
-			response: &shared.User{UUID: uid},
-			sc:       http.StatusOK,
-		},
-		"validation_rails": {
-			a: &mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
-			u: &mockUserer{user: &shared.User{UUID: "uuid"}},
 			v: &mockValidator{
 				login:   &testCookie,
-				loginsc: http.StatusNotAcceptable,
+				loginsc: http.StatusOK,
 			},
-			login: shared.BasicAuth{},
-			sc:    http.StatusNotAcceptable,
+			sc: http.StatusMovedPermanently,
 		},
 		"read_fails": {
 			a:  &mockAuther{},
@@ -145,42 +122,17 @@ func Test_PostLogin(t *testing.T) {
 			a:  &mockAuther{getErr: fmt.Errorf("some error")},
 			sc: http.StatusBadRequest,
 		},
-		"cookie_missing": {
-			a:   &mockAuther{getErr: fmt.Errorf("some error")},
-			pad: "pad",
-			sc:  http.StatusForbidden,
-		},
-		"validate_fails": {
-			a:   &mockAuther{getErr: fmt.Errorf("some error")},
-			pad: "pad",
-			cookie: &http.Cookie{
-				Name:  "us-authn",
-				Value: "token",
-			},
-			v:  &mockValidator{validateotpsc: http.StatusForbidden},
-			sc: http.StatusForbidden,
-		},
-		"uuid_mismatch": {
-			a:   &mockAuther{getErr: fmt.Errorf("some error")},
-			pad: "pad",
-			cookie: &http.Cookie{
-				Name:  "us-authn",
-				Value: "token",
-			},
-			v: &mockValidator{
-				validateotp:   "uid",
-				validateotpsc: http.StatusOK,
-			},
-			sc: http.StatusForbidden,
-		},
-		"login_fails": {
-			a:  &mockAuther{loginErr: fmt.Errorf("some error")},
+		"auth_login_fails": {
+			a:  &mockAuther{loginErr: fmt.Errorf("auth_login_fails")},
 			sc: http.StatusBadRequest,
 		},
-		"getuser_fails": {
-			a:  &mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
-			u:  &mockUserer{userErr: fmt.Errorf("some error")},
-			sc: http.StatusInternalServerError,
+		"valid_login_fails": {
+			a: &mockAuther{login: &shared.BasicAuth{UUID: uid}},
+			v: &mockValidator{
+				login:   &testCookie,
+				loginsc: http.StatusBadRequest,
+			},
+			sc: http.StatusBadRequest,
 		},
 	}
 	for name, tc := range tcs {
@@ -191,7 +143,6 @@ func Test_PostLogin(t *testing.T) {
 
 			us := &UserService{
 				Auther:    tc.a,
-				Userer:    tc.u,
 				Validator: tc.v,
 			}
 
@@ -214,19 +165,11 @@ func Test_PostLogin(t *testing.T) {
 				"tc.url",
 				bodyreader,
 			)
-			r.Header.Set("Authn-Pad", tc.pad)
-			if tc.cookie != nil {
-				r.AddCookie(tc.cookie)
-			}
 
 			us.PostLogin(w, r)
 
-			resp, _ := io.ReadAll(w.Body)
 			require.Equal(t, tc.sc, w.Code)
-			var temp *shared.User
-			_ = json.Unmarshal(resp, &temp)
-			require.Equal(t, tc.response, temp)
-			if w.Code == http.StatusOK {
+			if w.Code == http.StatusMovedPermanently {
 				require.Subset(t, w.Result().Cookies(), []*http.Cookie{&testCookie})
 			} else {
 				require.NotSubset(t, w.Result().Cookies(), []*http.Cookie{&testCookie})
@@ -243,45 +186,76 @@ func Test_PatchLogin(t *testing.T) {
 	tcs := map[string]struct {
 		a        *mockAuther
 		v        *mockValidator
-		uid      shared.UUID
+		id       shared.UUID
+		cookie   *http.Cookie
 		new, old *shared.Password
 		sc       int
 	}{
 		"happy_path": {
-			a:   &mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
-			v:   &mockValidator{login: &http.Cookie{}, loginsc: http.StatusOK},
-			uid: "uuid",
-			old: &pass,
-			new: &pass,
-			sc:  http.StatusNoContent,
+			a: &mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
+			v: &mockValidator{
+				completeotp:   "uuid",
+				completeotpsc: http.StatusOK,
+				login:         &http.Cookie{},
+				loginsc:       http.StatusOK,
+			},
+			id:     "uuid",
+			cookie: &http.Cookie{Name: "authn-pad"},
+			old:    &pass,
+			new:    &pass,
+			sc:     http.StatusNoContent,
 		},
 		"param_missing": {
-			a:  &mockAuther{},
 			sc: http.StatusBadRequest,
 		},
 		"read_fails": {
-			a:   &mockAuther{},
-			uid: "user_id",
+			id:  "user_id",
 			old: &pass,
 			sc:  http.StatusBadRequest,
 		},
 		"unmarshal_fails": {
-			a:   &mockAuther{getErr: fmt.Errorf("some error")},
-			uid: "uuid",
+			id:  "uuid",
 			old: &pass,
 			sc:  http.StatusBadRequest,
 		},
+		"complete_fails": {
+			a:      &mockAuther{resetErr: fmt.Errorf("some error")},
+			v:      &mockValidator{completeotpsc: http.StatusBadRequest},
+			id:     "uuid",
+			cookie: &http.Cookie{Name: "authn-pad"},
+			sc:     http.StatusBadRequest,
+		},
+		"wrong_id": {
+			a: &mockAuther{resetErr: fmt.Errorf("some error")},
+			v: &mockValidator{
+				completeotp:   "wrong_id",
+				completeotpsc: http.StatusOK,
+			},
+			id:     "uuid",
+			cookie: &http.Cookie{Name: "authn-pad"},
+			sc:     http.StatusBadRequest,
+		},
+		"reset_fails": {
+			a: &mockAuther{resetErr: fmt.Errorf("some error")},
+			v: &mockValidator{
+				completeotp:   "uuid",
+				completeotpsc: http.StatusOK,
+			},
+			id:     "uuid",
+			cookie: &http.Cookie{Name: "authn-pad"},
+			sc:     http.StatusInternalServerError,
+		},
 		"change_fails": {
 			a:   &mockAuther{change: fmt.Errorf("some error")},
-			uid: "uuid",
+			id:  "uuid",
 			old: &pass,
 			new: &pass,
-			sc:  http.StatusBadRequest,
+			sc:  http.StatusInternalServerError,
 		},
 		"authn_login_fails": {
 			a:   &mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
 			v:   &mockValidator{login: nil, loginsc: http.StatusForbidden},
-			uid: "uuid",
+			id:  "uuid",
 			old: &pass,
 			new: &pass,
 			sc:  http.StatusForbidden,
@@ -312,7 +286,7 @@ func Test_PatchLogin(t *testing.T) {
 			}
 
 			rctx := chi.NewRouteContext()
-			rctx.URLParams = chi.RouteParams{Keys: []string{"user_id"}, Values: []string{string(tc.uid)}}
+			rctx.URLParams = chi.RouteParams{Keys: []string{"user_id"}, Values: []string{string(tc.id)}}
 
 			w := httptest.NewRecorder()
 			r, _ := http.NewRequestWithContext(
@@ -324,6 +298,10 @@ func Test_PatchLogin(t *testing.T) {
 				"tc.url",
 				bodyreader,
 			)
+
+			if tc.cookie != nil {
+				r.AddCookie(tc.cookie)
+			}
 
 			us.PatchLogin(w, r)
 
@@ -345,7 +323,8 @@ func Test_DeleteLogin(t *testing.T) {
 	tcs := map[string]struct {
 		a     mockAuther
 		u     mockUserer
-		s     mockSender
+		ms    mockMailSender
+		ss    mockSmsSender
 		v     mockValidator
 		login shared.User
 		input,
@@ -354,9 +333,9 @@ func Test_DeleteLogin(t *testing.T) {
 		sc  int
 	}{
 		"happy_path": {
-			a: mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
-			v: mockValidator{token: "token"},
-			s: mockSender{},
+			a:  mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
+			v:  mockValidator{token: "token"},
+			ms: mockMailSender{},
 			u: mockUserer{
 				user: &shared.User{
 					UUID:  "uuid",
@@ -372,9 +351,9 @@ func Test_DeleteLogin(t *testing.T) {
 			loc: "redirect",
 		},
 		"sms_only": {
-			a: mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
-			v: mockValidator{token: "token"},
-			s: mockSender{},
+			a:  mockAuther{login: &shared.BasicAuth{UUID: "uuid"}},
+			v:  mockValidator{token: "token"},
+			ms: mockMailSender{},
 			u: mockUserer{
 				user: &shared.User{
 					UUID: "uuid",
@@ -453,29 +432,14 @@ func Test_DeleteLogin(t *testing.T) {
 			sc:  http.StatusConflict,
 			loc: "redirect",
 		},
-		"reset_fails": {
-			u: mockUserer{user: &shared.User{
-				UUID:  "uuid",
-				Email: &addr,
-				Cell:  &cell,
-			}},
-			a: mockAuther{reset: fmt.Errorf("some error")},
-			v: mockValidator{token: "token"},
-			login: shared.User{
-				UUID: "uuid",
-				Cell: &cell,
-			},
-			sc:  http.StatusBadRequest,
-			loc: "redirect",
-		},
 		"send_email_fails": {
 			u: mockUserer{user: &shared.User{
 				UUID:  "uuid",
 				Email: &addr,
 				Cell:  &cell,
 			}},
-			v: mockValidator{token: "token"},
-			s: mockSender{err: fmt.Errorf("some error")},
+			v:  mockValidator{token: "token"},
+			ms: mockMailSender{err: fmt.Errorf("some error")},
 			login: shared.User{
 				UUID: "uuid",
 				Cell: &cell,
@@ -488,7 +452,8 @@ func Test_DeleteLogin(t *testing.T) {
 				UUID:  "uuid",
 				Email: &addr,
 			}},
-			v: mockValidator{token: "token"},
+			v:  mockValidator{token: "token"},
+			ss: mockSmsSender{err: fmt.Errorf("some error")},
 			login: shared.User{
 				UUID:  "uuid",
 				Email: &addr,
@@ -504,10 +469,11 @@ func Test_DeleteLogin(t *testing.T) {
 			t.Parallel()
 
 			us := &UserService{
-				Auther:    &tc.a,
-				Sender:    &tc.s,
-				Userer:    &tc.u,
-				Validator: &tc.v,
+				Auther:     &tc.a,
+				MailSender: &tc.ms,
+				SmsSender:  &tc.ss,
+				Userer:     &tc.u,
+				Validator:  &tc.v,
 			}
 
 			body := userToDelete(&tc.login, tc.loc)
@@ -554,6 +520,6 @@ func (ma *mockAuther) ChangePassword(context.Context, shared.UUID, shared.Passwo
 func (ma *mockAuther) Login(context.Context, *shared.BasicAuth) (*shared.BasicAuth, error) {
 	return ma.login, ma.loginErr
 }
-func (ma *mockAuther) ResetPassword(context.Context, *shared.UUID) error {
-	return ma.reset
+func (ma *mockAuther) ResetPassword(context.Context, *shared.UUID) (shared.Password, error) {
+	return ma.reset, ma.resetErr
 }

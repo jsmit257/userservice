@@ -2,72 +2,37 @@ package shared
 
 import (
 	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/go-gomail/gomail"
+	"github.com/sirupsen/logrus"
+	twilioApi "github.com/twilio/twilio-go/rest/api/v2010"
 )
 
 // convenience method for getting the authentication state from
 // a client token. errors are likely cookie-related so the client
 // is responsible for what to do about bad input. unless the
 // server isn't responding
-func CheckValid(host string, port uint16, cookie *http.Cookie) (*http.Cookie, int) {
-	if cookie == nil {
-		return nil, http.StatusForbidden
-	}
-
+func CheckValid(host string, port uint16, cookie *http.Cookie) (*http.Cookie, http.Header, int) {
 	url := fmt.Sprintf("http://%s:%d/valid", host, port)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		return nil, http.StatusInternalServerError
+		return nil, nil, http.StatusInternalServerError
 	}
-	req.AddCookie(cookie)
-
-	var result *http.Cookie
-	if resp, err := http.DefaultClient.Do(req); err != nil {
-		return nil, http.StatusInternalServerError
-	} else if resp.StatusCode != http.StatusFound {
-		return nil, http.StatusForbidden
-	} else if header := resp.Header.Get("Set-Cookie"); len(header) == 0 {
-		return nil, http.StatusInternalServerError
-	} else if result, err = http.ParseSetCookie(header); err != nil {
-		return nil, http.StatusInternalServerError
-	}
-
-	return result, http.StatusFound
-}
-
-func CheckOTP(host string, port uint16, cookie *http.Cookie, pad string) (UUID, int) {
-	var result UUID
-
-	if cookie == nil {
-		return result, http.StatusBadRequest
-	}
-
-	url := fmt.Sprintf("http://%s:%d/validateotp/%s", host, port, cookie.Value)
-	req, err := http.NewRequest(http.MethodPost, url, nil)
-	if err != nil {
-		return result, http.StatusInternalServerError
+	if cookie != nil {
+		req.AddCookie(cookie)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return result, http.StatusInternalServerError
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return result, http.StatusForbidden
-	} else if body, err := io.ReadAll(resp.Body); err != nil {
-		return result, http.StatusInternalServerError
-	} else if len(body) == 0 {
-		return result, http.StatusForbidden
-	} else {
-		result = UUID(body)
+		return nil, nil, http.StatusInternalServerError
+	} else if header := resp.Header.Get("Set-Cookie"); len(header) == 0 {
+		return nil, nil, http.StatusInternalServerError
+	} else if cookie, err = http.ParseSetCookie(header); err != nil {
+		return nil, nil, http.StatusInternalServerError
 	}
 
-	return result, resp.StatusCode
+	return cookie, resp.Header, resp.StatusCode
 }
 
 func (u *User) Undeliverable() bool {
@@ -85,26 +50,37 @@ func (u *User) PasswordResetEmail(host, token string) *gomail.Message {
 		return nil
 	}
 
-	var emailTmpl string = `<a "href=https://%s/otp/%s">Change Password</a>` // where does this thing go?
+	// there's more to the message than this; where does it go?
+	var emailTmpl string = `<a "href=https://%s/otp/%s">Change Password</a>`
 
 	m := gomail.NewMessage()
-	m.SetHeader("From", "no-reply@cffc.io")
 	m.SetHeader("To", string(*u.Email))
 	m.SetBody("text/html", fmt.Sprintf(
 		emailTmpl,
 		host,
 		token,
 	))
+	logrus.WithField("emailTmpl", fmt.Sprintf(
+		emailTmpl,
+		host,
+		token,
+	)).Error("PasswordResetEmail log message")
 
 	return m
 }
 
-func (u *User) PasswordResetSMS(string) any {
+func (u *User) PasswordResetSMS(host, token string) *twilioApi.CreateMessageParams {
 	if u.Cell == nil {
 		return nil
 	}
 
-	return func() {}
+	return (&twilioApi.CreateMessageParams{}).
+		SetTo(string(*u.Cell)).
+		SetBody(fmt.Sprintf(
+			`<a "href=https://%s/otp/%s">Change Password</a>`,
+			host,
+			token,
+		))
 }
 
 func (p Password) Valid() bool {

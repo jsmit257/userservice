@@ -12,12 +12,16 @@
   <!-- replace favicon error with something slightly less irritating -->
   <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon">
 
-  <script src="https://code.jquery.com/jquery-3.7.1.slim.min.js"></script>
-  <script src="js/login.js" defer></script>
+  <script src="https://code.jquery.com/jquery-3.7.1.slim.min.js"
+    integrity="sha256-kmHvs0B+OpCW5GVHUNjv9rOmY0IvSIRcf7zGUDTDQM8=" crossorigin="anonymous"></script>
+  <script src="login.js" defer></script>
+  <script src="js/custom.js" defer></script>
 
-  <link rel="preload" href="css/login.css" as="style" onload="this.onloqd=null;this.rel='stylesheet'">
+  <link rel="preload" href="login.css" as="style" onload="this.onloqd=null;this.rel='stylesheet'">
+  <link rel="preload" href="css/custom.css" as="style" onload="this.onloqd=null;this.rel='stylesheet'">
   <noscript>
-    <link rel="stylesheet" href="css/login.css">
+    <link rel="stylesheet" href="login.css">
+    <link rel="stylesheet" href="css/custom.css">
   </noscript>
 </head>
 
