@@ -30,6 +30,7 @@ system-test: unit down mysql-test serve-mysql
 
 .PHONY: web
 web:
+	rmdir nginx/www/js nginx/www/css
 	docker-compose up --build --remove-orphans -d us-web
 
 .PHONY: vet
@@ -57,5 +58,5 @@ push:
 	docker push jsmit257/us-db-mysql-mig:lkg
 	docker push jsmit257/us-srv-mysql:lkg
 	docker push jsmit257/us-web:lkg
-	git push origin stable:stable
+	git push --force origin stable:stable
 

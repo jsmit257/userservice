@@ -19,13 +19,18 @@ func Test_CheckValid(t *testing.T) {
 		host     string
 		port     uint16
 		cookie   *http.Cookie
-		sc       int
-		response *http.Cookie
-		status   int
+		location string
+		validsc  int
+		err      error
+		checksc  int
 	}{
+		"new_request_fails": {
+			host:    "\t",
+			checksc: http.StatusInternalServerError,
+		},
 		"happy_path": {
 			host: "Test_CheckValid",
-			port: 1,
+			port: 1313,
 			cookie: &http.Cookie{
 				Name:     "us-authn",
 				Value:    "Test_CheckValid",
@@ -33,21 +38,27 @@ func Test_CheckValid(t *testing.T) {
 				MaxAge:   900,
 				HttpOnly: true,
 			},
-			sc: http.StatusFound,
-			response: &http.Cookie{
-				Name:       "us-authn",
-				Value:      "Test_CheckValid",
-				Expires:    now.Truncate(time.Second),
-				RawExpires: now.In(time.FixedZone("GMT", 0)).Format(time.RFC1123),
-				MaxAge:     900,
-				HttpOnly:   true,
-			},
-			status: http.StatusFound,
+			location: "/location",
+			validsc:  http.StatusMovedPermanently,
+			checksc:  http.StatusMovedPermanently,
+		},
+		"unparseable": {
+			host:     "Test_CheckValid",
+			port:     1313,
+			location: "/location",
+			validsc:  http.StatusMovedPermanently,
+			checksc:  http.StatusInternalServerError,
+		},
+		"get_request_fails": {
+			host:    "Test_CheckValid",
+			port:    1313,
+			err:     fmt.Errorf("some error"),
+			checksc: http.StatusInternalServerError,
 		},
 		"nil_cookie": {
-			host:   "Test_CheckValid",
-			port:   1,
-			status: http.StatusInternalServerError,
+			host:    "Test_CheckValid",
+			port:    1,
+			checksc: http.StatusInternalServerError,
 		},
 	}
 
@@ -58,22 +69,30 @@ func Test_CheckValid(t *testing.T) {
 			httpmock.RegisterResponder(http.MethodGet,
 				fmt.Sprintf("http://%s:%d/valid", tc.host, tc.port),
 				func(r *http.Request) (*http.Response, error) {
-					resp := httpmock.NewBytesResponse(tc.sc, nil)
-					resp.Header.Set("Set-Cookie", tc.response.String())
+					if tc.err != nil {
+						return nil, tc.err
+					}
+					resp := httpmock.NewBytesResponse(tc.validsc, nil)
+					resp.Header.Set("Location", tc.location)
+					if tc.cookie != nil {
+						resp.Header.Set("Set-Cookie", tc.cookie.String())
+					} else if name == "unparseable" {
+						resp.Header.Set("Set-Cookie", name)
+					}
 					return resp, nil
 				})
 			httpmock.Activate()
 			defer httpmock.Deactivate()
 
-			response, _, sc := CheckValid(tc.host, tc.port, tc.cookie)
-			require.Equal(t, tc.status, sc)
-			if tc.response != nil {
-				require.Equal(t, tc.response.Value, response.Value)
-				require.Equal(t, tc.response.Expires, response.Expires)
-				require.Equal(t, tc.response.MaxAge, response.MaxAge)
-				require.Equal(t, tc.response.HttpOnly, response.HttpOnly)
+			cookie, _, sc := CheckValid(tc.host, tc.port, tc.cookie)
+			require.Equal(t, tc.checksc, sc)
+			if tc.cookie != nil {
+				require.Equal(t, tc.cookie.Value, cookie.Value)
+				require.Equal(t, tc.cookie.Expires.Truncate(time.Second), cookie.Expires)
+				require.Equal(t, tc.cookie.MaxAge, cookie.MaxAge)
+				require.Equal(t, tc.cookie.HttpOnly, cookie.HttpOnly)
 			} else {
-				require.Nil(t, response)
+				require.Nil(t, cookie)
 			}
 		})
 	}

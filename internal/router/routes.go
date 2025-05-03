@@ -74,6 +74,8 @@ func NewInstance(us *UserService, cfg *config.Config, log *logrus.Entry) *http.S
 
 	r.Get("/metrics", metrics.NewHandler())
 
+	r.Get("/settings", settings(cfg))
+
 	return &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", cfg.ServerHost, cfg.ServerPort),
 		Handler: r,
@@ -84,6 +86,42 @@ func NewInstance(us *UserService, cfg *config.Config, log *logrus.Entry) *http.S
 func hc(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("OK"))
+}
+
+func settings(cfg *config.Config) http.HandlerFunc {
+	temp, err := json.Marshal(cfg)
+	if err != nil {
+		panic(err)
+	}
+
+	var result map[string]any
+	err = json.Unmarshal(temp, &result)
+	if err != nil {
+		panic(err)
+	}
+
+	all, err := json.Marshal(result)
+	if err != nil {
+		panic(err)
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		var s string
+		if key := chi.URLParam(r, "name"); key == "*" {
+			w.WriteHeader(http.StatusOK)
+			s = string(all)
+		} else if body, ok := result[key]; !ok {
+			w.WriteHeader(http.StatusNotFound) // dicey: NoContent or NotFound?
+			s = fmt.Sprintf(`{"error": "no value for key: %s"}`, key)
+		} else if value, err := json.Marshal(body); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			s = fmt.Sprintf(`{"error": "%q"}`, err)
+		} else {
+			w.WriteHeader(http.StatusOK)
+			s = fmt.Sprintf(`{"value": %s}`, value)
+		}
+		_, _ = w.Write([]byte(s))
+	}
 }
 
 // shamelessly copied from https://github.com/go-chi/chi/issues/270#issuecomment-479184559

@@ -53,7 +53,7 @@ $(_ => {
         .trigger('clear')
         .find('>.username>#username')
         .val(localStorage.username)
-        .trigger('test')
+        .trigger('change')
 
       let search = document.location.search
         .replace(/^\?/, '')
@@ -147,7 +147,16 @@ $(_ => {
     .on('change', `>${username}`, e => {
       e.stopPropagation()
 
-      $(e.currentTarget).trigger('test')
+      let input = e.currentTarget
+
+      if ($(input.parentNode)
+        .withClass(chkuser(input.value), 'complete')
+        .hasClass('complete')
+      ) {
+        $(e.currentTarget).trigger('test')
+      } else {
+        $(`body>[id]${login}`).removeAttr('id')
+      }
     })
     .on('keyup', `>${username}`, e => {
       e.stopPropagation()
@@ -165,7 +174,14 @@ $(_ => {
       // // XXX: hold off on this
       // $(`body>${login}>.state`).text(input.value)
 
-      input.timer = setTimeout(_ => $(input).trigger('test'), 100)
+      if ($(input.parentNode)
+        .withClass(chkuser(input.value), 'complete')
+        .hasClass('complete')
+      ) {
+        input.timer = setTimeout(_ => $(input).trigger('test'), 100)
+      } else {
+        $(`body>[id]${login}`).removeAttr('id')
+      }
     })
     .on('test', `>${username}`, e => {
       e.stopPropagation()
@@ -176,25 +192,21 @@ $(_ => {
       delete input.timer
 
       let val = input.value
-      if (!$(input.parentNode).withClass(chkuser(val), 'complete').hasClass('complete')) {
+      fetch(`auth/${val}`).then(async resp => {
+        if (resp.status !== 200) throw {
+          url: resp.url,
+          method: 'GET',
+          status: resp.status,
+          message: await resp.text(),
+          level: 'console',
+        }
+        localStorage.username = val
+        return await resp.json()
+      }).then(json => $(`body>${login}`).attr('id', json.id)
+      ).catch(ex => {
         $(`body>${login}`).removeAttr('id')
-      } else {
-        fetch(`/auth/${val}`).then(async resp => {
-          if (resp.status !== 200) throw {
-            url: resp.url,
-            method: 'GET',
-            status: resp.status,
-            message: await resp.text(),
-            level: 'console',
-          }
-          localStorage.username = val
-          return await resp.json()
-        }).then(json => $(`body>${login}`).attr('id', json.id)
-        ).catch(ex => {
-          $(`body>${login}`).removeAttr('id')
-          $(document.body).trigger('error-message', ex)
-        })
-      }
+        $(document.body).trigger('error-message', ex)
+      })
     })
     .on('click', `>${userfield}>.create`, e => {
       e.stopPropagation()
@@ -216,10 +228,18 @@ $(_ => {
     .on('keyup', `>${password}`, e => {
       e.stopPropagation()
 
+      if (keyignore[e.key]) {
+        return
+      } else if (e.key === 'Enter') {
+        $(`body>[id]${passfield}.complete>.ok`).click()
+      } else {
+        //   console.log(e.key)
+      }
+
       let $pass = $(e.currentTarget)
       $pass.parent().withClass(chkpass($pass.val()), 'complete')
     })
-    .on('click', `>[id]${passfield}>.ok`, e => {
+    .on('click', `>[id]${passfield}.complete>.ok`, e => {
       e.stopPropagation()
 
       let body = {
@@ -243,7 +263,7 @@ $(_ => {
           redirect: _ => $(`body>${password}`).focus()
         }))
     })
-    .on('click', `>[id]${passfield}>.change`, e => {
+    .on('click', `>[id]${passfield}.complete>.change`, e => {
       e.stopPropagation()
 
       $(`body>${login}`)
@@ -381,14 +401,14 @@ $(_ => {
 
       if (body.old == body.new) { // the service would do this anyway
         return $(document.body).trigger('error-message', {
-          url: `/auth/${id}`,
+          url: `auth/${id}`,
           method: 'PATCH',
           status: 400,
           message: 'passwords match'
         })
       }
 
-      fetch(`/auth/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+      fetch(`auth/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
         .then(async resp => {
           let result = {
             url: resp.url,

@@ -2,7 +2,9 @@ package router
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -99,6 +101,77 @@ func Test_WrapContext(t *testing.T) {
 
 			handle.ServeHTTP(w, r)
 			require.Equal(t, tc.sc, w.Result().StatusCode)
+		})
+	}
+}
+
+func Test_Settings(t *testing.T) {
+	t.Skip()
+	t.Parallel()
+
+	handler := settings(&config.Config{})
+
+	tcs := map[string]struct {
+		name  string
+		value map[string]interface{}
+		sc    int
+	}{
+		"get_all": {
+			name: "*",
+			value: map[string]interface{}{
+				"authn_path":   "foobar",
+				"authn_port":   float64(1234),
+				"huautla_host": "quux",
+			},
+			sc: http.StatusOK,
+		},
+		"get_string": {
+			name:  "authn_path",
+			value: map[string]interface{}{"value": "foobar"},
+			sc:    http.StatusOK,
+		},
+		"get_number": {
+			name:  "authn_port",
+			value: map[string]interface{}{"value": float64(1234)},
+			sc:    http.StatusOK,
+		},
+		"not_found": {
+			name:  "bad_key",
+			value: map[string]interface{}{"error": "no value for key: bad_key"},
+			sc:    http.StatusNotFound,
+		},
+	}
+
+	for name, tc := range tcs {
+		name, tc := name, tc
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			w := httptest.NewRecorder()
+			defer w.Result().Body.Close()
+			rctx := chi.NewRouteContext()
+			rctx.URLParams = chi.RouteParams{Keys: []string{"name"}, Values: []string{tc.name}}
+			r, _ := http.NewRequestWithContext(
+				context.WithValue(
+					context.Background(), // metrics.MockServiceContext,
+					chi.RouteCtxKey,
+					rctx),
+				http.MethodGet,
+				"url",
+				nil)
+
+			handler(w, r)
+
+			body, err := io.ReadAll(w.Body)
+			require.Nil(t, err)
+			t.Log(string(body))
+			var result any
+			err = json.Unmarshal(body, &result)
+			require.Nil(t, err, string(body))
+
+			require.Equal(t, tc.sc, w.Code)
+			require.Equal(t, tc.value, result)
 		})
 	}
 }
