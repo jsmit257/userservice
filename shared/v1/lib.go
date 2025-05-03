@@ -32,7 +32,7 @@ func CheckValid(host string, port uint16, cookie *http.Cookie) (*http.Cookie, ht
 	if err != nil {
 		return nil, nil, http.StatusInternalServerError
 	} else if header := resp.Header.Get("Set-Cookie"); len(header) == 0 {
-		return nil, nil, http.StatusInternalServerError
+		return nil, nil, resp.StatusCode
 	} else if cookie, err = http.ParseSetCookie(header); err != nil {
 		return nil, nil, http.StatusInternalServerError
 	}

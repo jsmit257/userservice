@@ -39,14 +39,14 @@ func Test_CheckValid(t *testing.T) {
 				HttpOnly: true,
 			},
 			location: "/location",
-			validsc:  http.StatusMovedPermanently,
-			checksc:  http.StatusMovedPermanently,
+			validsc:  http.StatusTemporaryRedirect,
+			checksc:  http.StatusTemporaryRedirect,
 		},
 		"unparseable": {
 			host:     "Test_CheckValid",
 			port:     1313,
 			location: "/location",
-			validsc:  http.StatusMovedPermanently,
+			validsc:  http.StatusTemporaryRedirect,
 			checksc:  http.StatusInternalServerError,
 		},
 		"get_request_fails": {
@@ -58,7 +58,8 @@ func Test_CheckValid(t *testing.T) {
 		"nil_cookie": {
 			host:    "Test_CheckValid",
 			port:    1,
-			checksc: http.StatusInternalServerError,
+			validsc: http.StatusTemporaryRedirect,
+			checksc: http.StatusTemporaryRedirect,
 		},
 	}
 
