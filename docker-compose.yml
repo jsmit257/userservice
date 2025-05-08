@@ -1,8 +1,8 @@
 ---
 x-mysql-host: &mysql-host percona
 x-mysql-port: &mysql-port 3306
-x-mysql-pwd: &mysql-pwd root
 x-mysql-user: &mysql-user root
+x-mysql-pass: &mysql-pass root
 x-redis-user: &redis-user redis
 x-redis-pass: &redis-pass redis
 x-redis-host: &redis-host redis
@@ -17,8 +17,6 @@ x-http-port: &http-port 3000
 # `chown 1001:1001 ./.data` on the local host, or some combination of
 # `usermod` and `find -uid ??? -exec chown <local uid>:<local gid> "{}" \;`
 # in Dockerfile.mysql
-x-persist-volumes: &standalone-volumes
-  - ./.data:/var/lib/mysql
 
 services:
   mysql-test:
@@ -35,34 +33,7 @@ services:
     hostname: *mysql-host
     ports:
       - 6033:3306
-    environment:
-      MYSQL_ROOT_PASSWORD: *mysql-pwd
-
-  mysql-migration:
-    # same as a regular startup except the volume mount for persistence, 
-    # including any sql files in /docker-entrypoint-initdb.d; run it once
-    # to seed a new database, then periodically to apply patches; should 
-    # probably take down mysql-persist before you do it
-    image: jsmit257/us-db-mysql-mig:latest
-    build:
-      context: .
-      dockerfile: Dockerfile.mysql
-      target: migration
-    volumes: *standalone-volumes
-    entrypoint: /var/lib/mysql-files/install-userservice.sh mysqld
-
-  mysql-persist:
-    # the real server process; just hooks a vanilla percona container
-    # up to the volume previously/periodically written to by mysql-migration
-    image: percona:ps-8.0.36-28
-    # this isn't really a dependency, it just needs to run before the
-    # first startup, and periodically afterward to pick up changes
-    depends_on: [ mysql-migration ]
-    restart: always
-    hostname: *mysql-host
-    volumes: *standalone-volumes
-    environment:
-      MYSQL_ROOT_PASSWORD: *mysql-pwd
+    environment: { MYSQL_ROOT_PASSWORD: *mysql-pass }
 
   redis:
     # stores login information, not unlike a session, just cares about 
@@ -73,13 +44,13 @@ services:
     hostname: *redis-host
     ports: [ 6666:6379 ]
 
-  # maild:
-  #   image: bytemark/smtp
-  #   restart: always
-  #   hostname: *maild-host
-  #   env_file:
-  #     - ./bin/env/template
-  #     - ./bin/env/system
+  maild:
+    image: bytemark/smtp
+    restart: always
+    hostname: *maild-host
+    env_file:
+      - ./bin/env/template
+      - ./bin/env/system
 
   serve-mysql:
     # the main service, requires some database (we don't know which, so we
@@ -97,7 +68,7 @@ services:
       US_MYSQL_HOST: *mysql-host
       US_MYSQL_PORT: *mysql-port
       US_MYSQL_USER: *mysql-user
-      US_MYSQL_PASSWORD: *mysql-pwd
+      US_MYSQL_PASSWORD: *mysql-pass
       US_HTTP_HOST: *http-host
       US_HTTP_PORT: *http-port
       US_REDIS_HOST: *redis-host
@@ -128,3 +99,48 @@ services:
     environment:
       US_HTTP_HOST: *http-host
       US_HTTP_PORT: *http-port
+
+  #
+  # mainly for testing migration, backup and restore
+  #
+
+  mysql-persist:
+    image: percona:ps-8.0.36-28
+    restart: always
+    hostname: mysql-persist
+    volumes: [ "./persistence/data:/var/lib/mysql" ]
+    environment: { MYSQL_ROOT_PASSWORD: *mysql-pass }
+
+  mysql-initialization:
+    image: jsmit257/us-db-mysql-mig:latest
+    build: &build-migration
+      context: .
+      dockerfile: Dockerfile.mysql
+      target: migration
+    hostname: mysql-initialization
+    volumes: [ "./persistence/data:/var/lib/mysql" ]
+    environment: { MYSQL_ROOT_PASSWORD: root }
+    entrypoint: /var/lib/mysql-files/install-userservice.sh mysqld
+
+  mysql-backup:
+    image: jsmit257/us-db-mysql-mig:latest
+    volumes: [ "./persistence/backups:/mysqlbackup" ]
+    build: *build-migration
+    environment:
+      USERSERVICE_BACKUP_SOURCE_HOST: mysql-persist
+      USERSERVICE_BACKUP_SOURCE_PORT: *mysql-port
+      USERSERVICE_BACKUP_SOURCE_USER: *mysql-user
+      USERSERVICE_BACKUP_SOURCE_PASS: *mysql-pass
+    entrypoint: /mysql-backup.sh
+
+  mysql-restore:
+    image: jsmit257/us-db-mysql-mig:latest
+    volumes: [ "./persistence/backups:/mysqlbackup" ]
+    build: *build-migration
+    environment:
+      USERSERVICE_RESTORE_DEST_HOST: mysql-persist
+      USERSERVICE_RESTORE_DEST_PORT: *mysql-port
+      USERSERVICE_RESTORE_DEST_USER: *mysql-user
+      USERSERVICE_RESTORE_DEST_PASS: *mysql-pass
+      RESTORE_POINT: ${RESTORE_POINT}
+    entrypoint: /mysql-restore.sh

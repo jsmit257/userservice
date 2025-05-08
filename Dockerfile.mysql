@@ -1,9 +1,12 @@
 FROM percona:ps-8.0.36-28 AS migration
-COPY /sql/mysql/v0.0.0-init.sql /docker-entrypoint-initdb.d/v0.0.0-init.sql
-ENV MYSQL_ROOT_PASSWORD=root
+ADD --chown=mysql:mysql /sql/mysql/v0.0.0-init.sql /docker-entrypoint-initdb.d/v0.0.0-init.sql
+ADD --chown=mysql:mysql --chmod=755 /bin/mysql-backup.sh /bin/mysql-restore.sh /
 RUN grep -v 'exec "$@"' /docker-entrypoint.sh > /var/lib/mysql-files/install-userservice.sh
 RUN chmod 755 /var/lib/mysql-files/install-userservice.sh
+
+FROM migration AS initialization
+ENV MYSQL_ROOT_PASSWORD=root
 RUN /var/lib/mysql-files/install-userservice.sh mysqld
 
 FROM percona:ps-8.0.36-28
-COPY --from=migration /var/lib/mysql /var/lib/mysql
+COPY --from=initialization /var/lib/mysql /var/lib/mysql
