@@ -16,11 +16,12 @@ $(_ => {
   let matchable = `${login}>.matchable>input`
   let verify = `${login}>.verify`
 
-  // let chkuser = u => u.length > 7
   let chkuser = u => u.replace(/[^0-9A-Za-z_-]/, '') === u
     && u.length > 7
   let chkpass = p => p.length > 7
+    // FiXME: the punctuation pattern is broken
     // && p.replace(/[^,<>./?!@#$%^&*\(\)\{\}-_+=\[\]\|\\]/, '').length > 0
+    // FIXME: too lazy to include numbers until we can enforce punctuation too
     // && p.replace(/[^0-9]/, '').length > 0
     && p.replace(/[^A-Za-z]/, '').length > 0
   let chkcell = c => c.replace(/[^0-9]/, '').length == 10

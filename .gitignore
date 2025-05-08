@@ -2,8 +2,9 @@ log.json
 
 .data
 
-!/bin/env/template
-/bin/env
+!bin/env/template
+bin/env
 
-/nginx/custom
+nginx/custom
 
+persistence

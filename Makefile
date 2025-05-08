@@ -30,7 +30,7 @@ system-test: unit down mysql-test serve-mysql
 
 .PHONY: web
 web:
-	rmdir nginx/www/js nginx/www/css
+	-rmdir nginx/www/js nginx/www/css
 	docker-compose up --build --remove-orphans -d us-web
 
 .PHONY: vet
