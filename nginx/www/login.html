@@ -14,14 +14,16 @@
 
   <script src="https://code.jquery.com/jquery-3.7.1.slim.min.js"
     integrity="sha256-kmHvs0B+OpCW5GVHUNjv9rOmY0IvSIRcf7zGUDTDQM8=" crossorigin="anonymous"></script>
+  <!-- <script src="jquery-slim-min.js"></script> -->
+
   <script src="login.js" defer></script>
-  <script src="js/custom.js" defer></script>
+  <script src="js/authnz.js" defer></script>
 
   <link rel="preload" href="login.css" as="style" onload="this.onloqd=null;this.rel='stylesheet'">
-  <link rel="preload" href="css/custom.css" as="style" onload="this.onloqd=null;this.rel='stylesheet'">
+  <link rel="preload" href="css/authnz.css" as="style" onload="this.onloqd=null;this.rel='stylesheet'">
   <noscript>
     <link rel="stylesheet" href="login.css">
-    <link rel="stylesheet" href="css/custom.css">
+    <link rel="stylesheet" href="css/authnz.css">
   </noscript>
 </head>
 
@@ -30,7 +32,7 @@
     <div class="state"></div>
 
     <label class="field username">
-      <input id="username" tabindex="0" placeholder="8-character minimum">
+      <input id="username" tabindex="0" autocapitalize="off" placeholder="8-character minimum">
       <button class="create" type="button" tabindex="0" title="create user">✚</button>
       <button class="forgot" type="button" tabindex="0" title="forgot password">?</button>
     </label>

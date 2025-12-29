@@ -5,6 +5,7 @@ build:
 .PHONY: unit
 unit:
 	go test -cover ./...
+	go test -cover ./shared/...
 
 .PHONY: mysql-migration
 mysql-migration:
@@ -43,7 +44,7 @@ down:
 .PHONY: deploy
 deploy: # no hard dependency on `system-test` for mow
 	docker-compose build mysql-test
-	docker-compose build mysql-migration
+	docker-compose build mysql-initialization
 	docker-compose build serve-mysql
 	docker-compose build us-web
 	docker tag jsmit257/us-db-mysql-test:latest jsmit257/us-db-mysql-test:lkg

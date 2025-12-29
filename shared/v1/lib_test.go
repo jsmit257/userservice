@@ -149,7 +149,13 @@ func Test_PasswordValid(t *testing.T) {
 	t.Parallel()
 
 	require.False(t, Password("").Valid())
-	require.True(t, Password("01234567").Valid())
+	require.False(t, Password("01234567").Valid())
+	require.False(t, Password("ABCDEFGH").Valid())
+	// uncomment these when we enable more rigorous tests in Password.Valid()
+	// require.False(t, Password("AbCdEfGh").Valid())
+	// require.False(t, Password("abcdefgh").Valid())
+	// require.False(t, Password("A1b2C3d4").Valid())
+	require.True(t, Password("A1b@C3d%").Valid())
 }
 
 func Test_EmailValid(t *testing.T) {

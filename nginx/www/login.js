@@ -22,8 +22,8 @@ $(_ => {
     // FiXME: the punctuation pattern is broken
     // && p.replace(/[^,<>./?!@#$%^&*\(\)\{\}-_+=\[\]\|\\]/, '').length > 0
     // FIXME: too lazy to include numbers until we can enforce punctuation too
-    // && p.replace(/[^0-9]/, '').length > 0
-    && p.replace(/[^A-Za-z]/, '').length > 0
+    // && p.replace(/[^0-9]/, '').length > 0 // /[0-9]/.match(p)
+    && p.replace(/[^A-Za-z]/, '').length > 0 // /[A-Za-z]/.match(p)
   let chkcell = c => c.replace(/[^0-9]/, '').length == 10
   let chkmail = m => /[^@]{2,}@[^.]{2,}\.[A-Za-z]{2,3}/.test(m)
   let keyignore = Object.fromEntries([

@@ -30,10 +30,9 @@ type Config struct {
 	AuthnTimeout int64  `envconfig:"AUTHN_TIMEOUT" default:"15" json:"authn_timeout"`
 	MaxLogins    int    `envconfig:"MAX_LOGINS" default:"5" json:"max_logins"`
 	CookieName   string `envconfig:"AUTHN_COOKIE" default:"us-authn" json:"authn_cookie"`
-
-	LogonURL   string `envconfig:"LOGIN_URL" default:"/authnz/login.html" json:"logon_url"`
-	ResetURL   string `envconfig:"RESET_URL" default:"/authnz/login.html?reset" json:"reset_url"`
-	SuccessURL string `envconfig:"REDIR_SUCCESS" default:"/" json:"success_url"`
+	LogonURL     string `envconfig:"LOGIN_URL" default:"/authnz/login.html" json:"logon_url"`
+	ResetURL     string `envconfig:"RESET_URL" default:"/authnz/login.html?reset" json:"reset_url"`
+	SuccessURL   string `envconfig:"REDIR_SUCCESS" default:"/" json:"success_url"`
 
 	ServerHost string `envconfig:"HTTP_HOST" default:"0.0.0.0" json:"server_host"`
 	ServerPort uint16 `envconfig:"HTTP_PORT" default:"3000" json:"server_port"`

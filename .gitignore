@@ -6,5 +6,6 @@ log.json
 bin/env
 
 nginx/custom
+nginx/www/jquery-slim-min.js
 
 persistence

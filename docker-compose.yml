@@ -31,8 +31,7 @@ services:
       dockerfile: Dockerfile.mysql
     restart: always
     hostname: *mysql-host
-    ports:
-      - 6033:3306
+    # ports: [ 6033:3306 ]
     environment: { MYSQL_ROOT_PASSWORD: *mysql-pass }
 
   redis:
@@ -42,7 +41,7 @@ services:
     image: redis:bookworm
     restart: always
     hostname: *redis-host
-    ports: [ 6666:6379 ]
+    # ports: [ 6666:6379 ]
 
   maild:
     image: bytemark/smtp
@@ -88,7 +87,7 @@ services:
     volumes:
       # Dockerfile copies www/login.* into the image, so the next line is 
       # for development only
-      - ./nginx/www:/www
+      # - ./nginx/www:/www
 
       # login.html loads custom.{js,css} from these directories, empty 
       # defaults are created by Dockerfile to prevent 404s, if you choose 
@@ -124,8 +123,9 @@ services:
 
   mysql-backup:
     image: jsmit257/us-db-mysql-mig:latest
-    volumes: [ "./persistence/backups:/mysqlbackup" ]
     build: *build-migration
+    hostname: mysql-backup
+    volumes: [ "./persistence/backups:/mysqlbackup" ]
     environment:
       USERSERVICE_BACKUP_SOURCE_HOST: mysql-persist
       USERSERVICE_BACKUP_SOURCE_PORT: *mysql-port
@@ -135,8 +135,9 @@ services:
 
   mysql-restore:
     image: jsmit257/us-db-mysql-mig:latest
-    volumes: [ "./persistence/backups:/mysqlbackup" ]
     build: *build-migration
+    hostname: mysql-restore
+    volumes: [ "./persistence/backups:/mysqlbackup" ]
     environment:
       USERSERVICE_RESTORE_DEST_HOST: mysql-persist
       USERSERVICE_RESTORE_DEST_PORT: *mysql-port

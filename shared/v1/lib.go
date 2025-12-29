@@ -3,6 +3,7 @@ package shared
 import (
 	"fmt"
 	"net/http"
+	"regexp"
 
 	"github.com/go-gomail/gomail"
 	"github.com/sirupsen/logrus"
@@ -32,7 +33,7 @@ func CheckValid(host string, port uint16, cookie *http.Cookie) (*http.Cookie, ht
 	if err != nil {
 		return nil, nil, http.StatusInternalServerError
 	} else if header := resp.Header.Get("Set-Cookie"); len(header) == 0 {
-		return nil, nil, resp.StatusCode
+		return nil, resp.Header, resp.StatusCode
 	} else if cookie, err = http.ParseSetCookie(header); err != nil {
 		return nil, nil, http.StatusInternalServerError
 	}
@@ -89,9 +90,19 @@ func (u *User) PasswordResetSMS(host, token string) *twilioApi.CreateMessagePara
 }
 
 func (p Password) Valid() bool {
-	if len(p) < 8 {
+	str := string(p)
+	if length := len(p) - 2; length < 6 {
 		return false
+	} else if re := regexp.MustCompile("[a-z]"); len(re.ReplaceAllString(str, "")) > length {
+		return false
+		// } else if re := regexp.MustCompile("[A-Z]"); len(re.ReplaceAllString(str, "")) > length {
+		// 	return false
+		// } else if re := regexp.MustCompile("[0-9]"); len(re.ReplaceAllString(str, "")) > length {
+		// 	return false
+		// } else if re := regexp.MustCompile("[!@#$%^&*_+?]"); len(re.ReplaceAllString(str, "")) > length+1 {
+		// 	return false
 	}
+
 	return true
 }
 
